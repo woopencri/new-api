@@ -241,6 +241,12 @@ export const getPricingTableColumns = ({
             <div className='text-gray-700'>
               {t('输出')} {priceData.completionPrice} / 1{priceData.unitLabel}{' '}
               tokens
+              {/* [MIN_PRICE_FEATURE] 底价并排显示 */}
+              {record.min_price > 0 && (
+                <span className='ml-3'>
+                  {t('底价')} {priceData.minPriceDisplay}
+                </span>
+              )}
             </div>
           </div>
         );
