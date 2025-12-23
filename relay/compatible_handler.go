@@ -355,6 +355,15 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 
 	var logContent string
 
+	// [MIN_PRICE_FEATURE] 底价检查 - 仅对按量计费模型生效
+	if !relayInfo.PriceData.UsePrice && totalTokens > 0 {
+		var minPriceTriggered bool
+		quota, minPriceTriggered = service.ApplyMinPrice(quota, relayInfo.PriceData.MinPrice, groupRatio)
+		if minPriceTriggered {
+			logContent += "触发底价限制"
+		}
+	}
+
 	// record all the consume log even if quota is 0
 	if totalTokens == 0 {
 		// in this case, must be some error happened

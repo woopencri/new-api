@@ -61,12 +61,15 @@ export default function ModelSettingsVisualEditor(props) {
       const modelPrice = JSON.parse(props.options.ModelPrice || '{}');
       const modelRatio = JSON.parse(props.options.ModelRatio || '{}');
       const completionRatio = JSON.parse(props.options.CompletionRatio || '{}');
+      // [MIN_PRICE_FEATURE] 加载底价配置
+      const modelMinPrice = JSON.parse(props.options.ModelMinPrice || '{}');
 
       // 合并所有模型名称
       const modelNames = new Set([
         ...Object.keys(modelPrice),
         ...Object.keys(modelRatio),
         ...Object.keys(completionRatio),
+        ...Object.keys(modelMinPrice),
       ]);
 
       const modelData = Array.from(modelNames).map((name) => {
@@ -74,12 +77,15 @@ export default function ModelSettingsVisualEditor(props) {
         const ratio = modelRatio[name] === undefined ? '' : modelRatio[name];
         const comp =
           completionRatio[name] === undefined ? '' : completionRatio[name];
+        // [MIN_PRICE_FEATURE] 底价
+        const minPrice = modelMinPrice[name] === undefined ? '' : modelMinPrice[name];
 
         return {
           name,
           price,
           ratio,
           completionRatio: comp,
+          minPrice,
           hasConflict: price !== '' && (ratio !== '' || comp !== ''),
         };
       });
@@ -113,6 +119,7 @@ export default function ModelSettingsVisualEditor(props) {
       ModelPrice: {},
       ModelRatio: {},
       CompletionRatio: {},
+      ModelMinPrice: {},  // [MIN_PRICE_FEATURE] 底价
     };
     let currentConvertModelName = '';
 
@@ -131,6 +138,10 @@ export default function ModelSettingsVisualEditor(props) {
               model.completionRatio,
             );
         }
+        // [MIN_PRICE_FEATURE] 底价保存（仅对按量计费模型生效）
+        if (model.minPrice !== '' && model.price === '') {
+          output.ModelMinPrice[model.name] = parseFloat(model.minPrice);
+        }
       });
 
       // 准备API请求数组
@@ -138,6 +149,7 @@ export default function ModelSettingsVisualEditor(props) {
         ModelPrice: JSON.stringify(output.ModelPrice, null, 2),
         ModelRatio: JSON.stringify(output.ModelRatio, null, 2),
         CompletionRatio: JSON.stringify(output.CompletionRatio, null, 2),
+        ModelMinPrice: JSON.stringify(output.ModelMinPrice, null, 2),  // [MIN_PRICE_FEATURE]
       };
 
       const requestQueue = Object.entries(finalOutput).map(([key, value]) => {
@@ -229,6 +241,20 @@ export default function ModelSettingsVisualEditor(props) {
           onChange={(value) =>
             updateModel(record.name, 'completionRatio', value)
           }
+        />
+      ),
+    },
+    // [MIN_PRICE_FEATURE] 底价列
+    {
+      title: t('底价($)'),
+      dataIndex: 'minPrice',
+      key: 'minPrice',
+      render: (text, record) => (
+        <Input
+          value={text}
+          placeholder={t('无底价')}
+          disabled={record.price !== ''}
+          onChange={(value) => updateModel(record.name, 'minPrice', value)}
         />
       ),
     },
@@ -347,6 +373,7 @@ export default function ModelSettingsVisualEditor(props) {
             price: values.price || '',
             ratio: values.ratio || '',
             completionRatio: values.completionRatio || '',
+            minPrice: values.minPrice || '',  // [MIN_PRICE_FEATURE]
           };
           updated.hasConflict =
             updated.price !== '' &&
@@ -370,6 +397,7 @@ export default function ModelSettingsVisualEditor(props) {
           price: values.price || '',
           ratio: values.ratio || '',
           completionRatio: values.completionRatio || '',
+          minPrice: values.minPrice || '',  // [MIN_PRICE_FEATURE]
         };
         newModel.hasConflict =
           newModel.price !== '' &&
@@ -446,6 +474,8 @@ export default function ModelSettingsVisualEditor(props) {
           formValues.completionRatioInput = modelCopy.completionRatio;
           formValues.modelTokenPrice = modelCopy.tokenPrice;
           formValues.completionTokenPrice = modelCopy.completionTokenPrice;
+          // [MIN_PRICE_FEATURE] 加载底价
+          formValues.minPriceInput = modelCopy.minPrice;
         }
 
         formRef.current.setValues(formValues);
@@ -549,6 +579,8 @@ export default function ModelSettingsVisualEditor(props) {
               // Clear ratios if we're in per-request mode
               valuesToSave.ratio = '';
               valuesToSave.completionRatio = '';
+              // [MIN_PRICE_FEATURE] 按次计费不需要底价
+              valuesToSave.minPrice = '';
             }
 
             addOrUpdateModel(valuesToSave);
@@ -708,6 +740,20 @@ export default function ModelSettingsVisualEditor(props) {
                     }
                     initValue={currentModel?.completionRatio || ''}
                   />
+                  {/* [MIN_PRICE_FEATURE] 底价输入 */}
+                  <Form.Input
+                    field='minPriceInput'
+                    label={t('底价(美元)')}
+                    placeholder={t('可选，留空表示无底价')}
+                    extraText={t('当按量计费低于此价格时，按底价收费')}
+                    onChange={(value) =>
+                      setCurrentModel((prev) => ({
+                        ...(prev || {}),
+                        minPrice: value,
+                      }))
+                    }
+                    initValue={currentModel?.minPrice || ''}
+                  />
                 </>
               )}
 
@@ -730,6 +776,20 @@ export default function ModelSettingsVisualEditor(props) {
                     }}
                     initValue={currentModel?.completionTokenPrice || ''}
                     suffix={t('$/1M tokens')}
+                  />
+                  {/* [MIN_PRICE_FEATURE] 底价输入 */}
+                  <Form.Input
+                    field='minPriceInput'
+                    label={t('底价(美元)')}
+                    placeholder={t('可选，留空表示无底价')}
+                    extraText={t('当按量计费低于此价格时，按底价收费')}
+                    onChange={(value) =>
+                      setCurrentModel((prev) => ({
+                        ...(prev || {}),
+                        minPrice: value,
+                      }))
+                    }
+                    initValue={currentModel?.minPrice || ''}
                   />
                 </>
               )}

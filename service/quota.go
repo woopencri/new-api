@@ -200,6 +200,15 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		logContent = fmt.Sprintf("模型价格 %.2f，分组倍率 %.2f", modelPrice, groupRatio)
 	}
 
+	// [MIN_PRICE_FEATURE] 底价检查 - 仅对按量计费模型生效
+	if !usePrice && totalTokens > 0 {
+		var minPriceTriggered bool
+		quota, minPriceTriggered = ApplyMinPrice(quota, relayInfo.PriceData.MinPrice, groupRatio)
+		if minPriceTriggered {
+			logContent += ", 触发底价限制"
+		}
+	}
+
 	// record all the consume log even if quota is 0
 	if totalTokens == 0 {
 		// in this case, must be some error happened
@@ -294,6 +303,16 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 	totalTokens := promptTokens + completionTokens
 
 	var logContent string
+
+	// [MIN_PRICE_FEATURE] 底价检查 - 仅对按量计费模型生效
+	if !relayInfo.PriceData.UsePrice && totalTokens > 0 {
+		var minPriceTriggered bool
+		quota, minPriceTriggered = ApplyMinPrice(quota, relayInfo.PriceData.MinPrice, groupRatio)
+		if minPriceTriggered {
+			logContent += "触发底价限制"
+		}
+	}
+
 	// record all the consume log even if quota is 0
 	if totalTokens == 0 {
 		// in this case, must be some error happened
@@ -417,6 +436,15 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 			modelRatio, completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), groupRatio)
 	} else {
 		logContent = fmt.Sprintf("模型价格 %.2f，分组倍率 %.2f", modelPrice, groupRatio)
+	}
+
+	// [MIN_PRICE_FEATURE] 底价检查 - 仅对按量计费模型生效
+	if !usePrice && totalTokens > 0 {
+		var minPriceTriggered bool
+		quota, minPriceTriggered = ApplyMinPrice(quota, relayInfo.PriceData.MinPrice, groupRatio)
+		if minPriceTriggered {
+			logContent += ", 触发底价限制"
+		}
 	}
 
 	// record all the consume log even if quota is 0

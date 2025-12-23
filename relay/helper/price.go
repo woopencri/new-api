@@ -115,6 +115,9 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		}
 	}
 
+	// [MIN_PRICE_FEATURE] 加载底价配置
+	minPrice, _ := ratio_setting.GetModelMinPrice(info.OriginModelName)
+
 	priceData := types.PriceData{
 		FreeModel:            freeModel,
 		ModelPrice:           modelPrice,
@@ -130,6 +133,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		CacheCreation5mRatio: cacheCreationRatio5m,
 		CacheCreation1hRatio: cacheCreationRatio1h,
 		QuotaToPreConsume:    preConsumedQuota,
+		MinPrice:             minPrice, // [MIN_PRICE_FEATURE]
 	}
 
 	if common.DebugEnabled {

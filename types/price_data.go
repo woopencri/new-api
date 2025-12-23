@@ -24,6 +24,7 @@ type PriceData struct {
 	UsePrice             bool
 	QuotaToPreConsume    int // 预消耗额度
 	GroupRatioInfo       GroupRatioInfo
+	MinPrice             float64 // [MIN_PRICE_FEATURE] 底价(美元)，按量计费时生效
 }
 
 type PerCallPriceData struct {
