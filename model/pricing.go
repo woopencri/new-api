@@ -27,6 +27,7 @@ type Pricing struct {
 	CompletionRatio        float64                 `json:"completion_ratio"`
 	EnableGroup            []string                `json:"enable_groups"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
+	MinPrice               float64                 `json:"min_price,omitempty"` // [MIN_PRICE_FEATURE] 底价(美元)
 }
 
 type PricingVendor struct {
@@ -290,6 +291,10 @@ func updatePricing() {
 			pricing.ModelRatio = modelRatio
 			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
 			pricing.QuotaType = 0
+			// [MIN_PRICE_FEATURE] 加载底价（仅按量计费模型）
+			if minPrice, ok := ratio_setting.GetModelMinPrice(model); ok {
+				pricing.MinPrice = minPrice
+			}
 		}
 		pricingMap = append(pricingMap, pricing)
 	}
