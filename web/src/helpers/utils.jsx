@@ -662,6 +662,14 @@ export const calculateModelPrice = ({
         symbol = '¤';
       }
     }
+
+    // [MIN_PRICE_FEATURE] 计算底价显示
+    let minPriceDisplay = null;
+    if (record.min_price && record.min_price > 0) {
+      const minPriceWithRatio = record.min_price * usedGroupRatio;
+      minPriceDisplay = displayPrice(minPriceWithRatio);
+    }
+
     return {
       inputPrice: `${symbol}${numInput.toFixed(precision)}`,
       completionPrice: `${symbol}${numCompletion.toFixed(precision)}`,
@@ -669,6 +677,7 @@ export const calculateModelPrice = ({
       isPerToken: true,
       usedGroup,
       usedGroupRatio,
+      minPriceDisplay, // [MIN_PRICE_FEATURE]
     };
   }
 
@@ -705,6 +714,12 @@ export const formatPriceInfo = (priceData, t) => {
         <span style={{ color: 'var(--semi-color-text-1)' }}>
           {t('输出')} {priceData.completionPrice}/{priceData.unitLabel}
         </span>
+        {/* [MIN_PRICE_FEATURE] 底价与输入输出样式一致 */}
+        {priceData.minPriceDisplay && (
+          <span style={{ color: 'var(--semi-color-text-1)' }}>
+            {t('底价')} {priceData.minPriceDisplay}
+          </span>
+        )}
       </>
     );
   }
