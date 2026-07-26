@@ -506,6 +506,12 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	}
 
+	// 禁用传输层自动重放：net/http 会为 *bytes.Buffer/*bytes.Reader/*strings.Reader
+	// 类型的 body 自动填充 GetBody，HTTP/2 在收到 GOAWAY/REFUSED_STREAM 等连接层错误时
+	// 会据此静默重发整个请求。对生图等长耗时请求，上游可能因此执行两次并重复计费，
+	// 而应用层只能观测到第二次响应。重试统一由 controller 层显式控制，这里一律禁止。
+	req.GetBody = nil
+
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.LogError(c, "do request failed: "+err.Error())
@@ -534,10 +540,6 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, req
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
 	applyUpstreamContentLength(req, info)
-	req.GetBody = func() (io.ReadCloser, error) {
-		return io.NopCloser(requestBody), nil
-	}
-
 	err = a.BuildRequestHeader(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
