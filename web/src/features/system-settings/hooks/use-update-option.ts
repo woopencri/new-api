@@ -26,6 +26,7 @@ import type { UpdateOptionRequest } from '../types'
 // Configuration keys that require status refresh
 const STATUS_RELATED_KEYS = [
   'HeaderNavModules',
+  'HeaderNavCustomLinks',
   'SidebarModulesAdmin',
   'Notice',
   'LogConsumeEnabled',

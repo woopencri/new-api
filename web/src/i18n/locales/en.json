@@ -5218,6 +5218,16 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Custom links": "Custom links",
+    "Add link": "Add link",
+    "Link name": "Link name",
+    "Link URL": "Link URL",
+    "Open in new window": "Open in new window",
+    "Require login to show": "Require login to show",
+    "Remove link": "Remove link",
+    "Extra navigation items appended after the built-in links.": "Extra navigation items appended after the built-in links.",
+    "Link name is required": "Link name is required",
+    "URL must start with http(s):// or /": "URL must start with http(s):// or /"
   }
 }

@@ -185,6 +185,57 @@ export async function getFreshModuleAccess(
   }
 }
 
+export type CustomNavLink = {
+  name: string
+  url: string
+  newWindow: boolean
+  enabled: boolean
+  requireAuth: boolean
+}
+
+const CUSTOM_LINK_URL_PATTERN = /^(https?:\/\/|\/)/
+
+export function parseCustomNavLinks(raw: unknown): CustomNavLink[] {
+  let parsed: unknown = raw
+  if (typeof raw === 'string') {
+    if (raw.trim() === '') return []
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return []
+    }
+  }
+  if (!Array.isArray(parsed)) return []
+
+  const links: CustomNavLink[] = []
+  for (const item of parsed) {
+    if (!item || typeof item !== 'object') continue
+    const r = item as Record<string, unknown>
+    if (typeof r.name !== 'string' || r.name.trim() === '') continue
+    if (typeof r.url !== 'string' || !CUSTOM_LINK_URL_PATTERN.test(r.url)) {
+      continue
+    }
+    links.push({
+      name: r.name,
+      url: r.url,
+      newWindow: typeof r.newWindow === 'boolean' ? r.newWindow : true,
+      enabled: typeof r.enabled === 'boolean' ? r.enabled : true,
+      requireAuth: typeof r.requireAuth === 'boolean' ? r.requireAuth : false,
+    })
+  }
+  return links
+}
+
+export function parseCustomNavLinksFromStatus(
+  status: Record<string, unknown> | null
+): CustomNavLink[] {
+  return parseCustomNavLinks(status?.HeaderNavCustomLinks)
+}
+
+export function serializeCustomNavLinks(links: CustomNavLink[]): string {
+  return JSON.stringify(links)
+}
+
 export function isSidebarModuleEnabled(
   section: string,
   module: string

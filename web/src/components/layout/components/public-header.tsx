@@ -223,7 +223,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                     <a
                       key={i}
                       href={link.href}
-                      target='_blank'
+                      target={link.newTab === false ? undefined : '_blank'}
                       rel='noopener noreferrer'
                       aria-disabled={link.disabled}
                       tabIndex={link.disabled ? -1 : undefined}
@@ -366,7 +366,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                   <a
                     key={i}
                     href={link.href}
-                    target='_blank'
+                    target={link.newTab === false ? undefined : '_blank'}
                     rel='noopener noreferrer'
                     aria-disabled={link.disabled}
                     tabIndex={link.disabled ? -1 : undefined}

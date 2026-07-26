@@ -20,7 +20,10 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useStatus } from '@/hooks/use-status'
-import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
+import {
+  parseCustomNavLinksFromStatus,
+  parseHeaderNavModulesFromStatus,
+} from '@/lib/nav-modules'
 import { useAuthStore } from '@/stores/auth-store'
 
 export type TopNavLink = {
@@ -29,6 +32,7 @@ export type TopNavLink = {
   disabled?: boolean
   requiresAuth?: boolean
   external?: boolean
+  newTab?: boolean
 }
 
 /**
@@ -51,6 +55,12 @@ export function useTopNavLinks(): TopNavLink[] {
   // Parse HeaderNavModules
   const modules = useMemo(() => {
     return parseHeaderNavModulesFromStatus(
+      status as Record<string, unknown> | null
+    )
+  }, [status])
+
+  const customLinks = useMemo(() => {
+    return parseCustomNavLinksFromStatus(
       status as Record<string, unknown> | null
     )
   }, [status])
@@ -98,6 +108,18 @@ export function useTopNavLinks(): TopNavLink[] {
   // About
   if (modules?.about !== false) {
     links.push({ title: t('About'), href: '/about' })
+  }
+
+  // Admin-defined custom links appended after built-in items
+  for (const link of customLinks) {
+    if (!link.enabled) continue
+    if (link.requireAuth && !isAuthed) continue
+    links.push({
+      title: link.name,
+      href: link.url,
+      external: /^https?:\/\//.test(link.url) || link.newWindow,
+      newTab: link.newWindow,
+    })
   }
 
   return links

@@ -5218,6 +5218,16 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Custom links": "カスタムリンク",
+    "Add link": "リンクを追加",
+    "Link name": "リンク名",
+    "Link URL": "リンクURL",
+    "Open in new window": "新しいウィンドウで開く",
+    "Require login to show": "ログイン後に表示",
+    "Remove link": "リンクを削除",
+    "Extra navigation items appended after the built-in links.": "組み込みリンクの後に追加されるナビゲーション項目。",
+    "Link name is required": "リンク名は必須です",
+    "URL must start with http(s):// or /": "URLはhttp(s)://または/で始まる必要があります"
   }
 }

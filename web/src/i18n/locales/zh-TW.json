@@ -5218,6 +5218,16 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Custom links": "自訂連結",
+    "Add link": "新增連結",
+    "Link name": "連結名稱",
+    "Link URL": "連結網址",
+    "Open in new window": "新視窗開啟",
+    "Require login to show": "登入後才顯示",
+    "Remove link": "刪除連結",
+    "Extra navigation items appended after the built-in links.": "附加在內建導覽項之後的額外導覽連結。",
+    "Link name is required": "連結名稱不能為空",
+    "URL must start with http(s):// or /": "URL 必須以 http(s):// 或 / 開頭"
   }
 }

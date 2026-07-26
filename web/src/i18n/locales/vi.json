@@ -5218,6 +5218,16 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Custom links": "Liên kết tùy chỉnh",
+    "Add link": "Thêm liên kết",
+    "Link name": "Tên liên kết",
+    "Link URL": "URL liên kết",
+    "Open in new window": "Mở trong cửa sổ mới",
+    "Require login to show": "Yêu cầu đăng nhập để hiển thị",
+    "Remove link": "Xóa liên kết",
+    "Extra navigation items appended after the built-in links.": "Các mục điều hướng bổ sung được thêm sau các liên kết tích hợp.",
+    "Link name is required": "Tên liên kết là bắt buộc",
+    "URL must start with http(s):// or /": "URL phải bắt đầu bằng http(s):// hoặc /"
   }
 }
