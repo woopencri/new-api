@@ -206,6 +206,7 @@ export type ModelSettings = {
   'grok.violation_deduction_enabled': boolean
   'grok.violation_deduction_amount': number
   ModelPrice: string
+  ModelMinPrice: string
   ModelRatio: string
   CacheRatio: string
   CreateCacheRatio: string
@@ -214,6 +215,7 @@ export type ModelSettings = {
   AudioRatio: string
   AudioCompletionRatio: string
   ExposeRatioEnabled: boolean
+  DisplayMinPriceEnabled: boolean
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
   'tool_price_setting.prices': string
@@ -260,6 +262,7 @@ export type BillingSettings = {
   DisplayInCurrencyEnabled: boolean
   DisplayTokenStatEnabled: boolean
   ModelPrice: string
+  ModelMinPrice: string
   ModelRatio: string
   CacheRatio: string
   CreateCacheRatio: string
@@ -268,6 +271,7 @@ export type BillingSettings = {
   AudioRatio: string
   AudioCompletionRatio: string
   ExposeRatioEnabled: boolean
+  DisplayMinPriceEnabled: boolean
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
   'tool_price_setting.prices': string

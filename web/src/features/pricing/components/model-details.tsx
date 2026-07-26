@@ -68,7 +68,11 @@ import {
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
-import { formatFixedPrice, formatGroupPrice } from '../lib/price'
+import {
+  formatFixedPrice,
+  formatGroupMinPrice,
+  formatGroupPrice,
+} from '../lib/price'
 import type {
   ModelCapability,
   PriceType,
@@ -773,6 +777,28 @@ function PriceSection(props: {
                 </span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      {props.model.min_price != null && (
+        <div className='bg-muted/20 mt-3 rounded-lg border px-3 py-2.5'>
+          <div className='flex items-baseline justify-between gap-4'>
+            <span className='text-muted-foreground/70 text-sm'>
+              {t('Min Price')}
+            </span>
+            <span className='text-muted-foreground font-mono text-sm tabular-nums'>
+              {formatGroupMinPrice(
+                props.model,
+                baseGroupKey,
+                props.showRechargePrice,
+                props.priceRate,
+                props.usdExchangeRate,
+                baseGroupRatioMap
+              )}
+              <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                / {t('request')}
+              </span>
+            </span>
           </div>
         </div>
       )}

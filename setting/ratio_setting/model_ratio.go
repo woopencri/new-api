@@ -1,6 +1,7 @@
 package ratio_setting
 
 import (
+	"math"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -322,6 +323,7 @@ var defaultAudioCompletionRatio = map[string]float64{
 }
 
 var modelPriceMap = types.NewRWMap[string, float64]()
+var modelMinPriceMap = types.NewRWMap[string, float64]()
 var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
 
@@ -354,6 +356,32 @@ func ModelPrice2JSONString() string {
 
 func UpdateModelPriceByJSONString(jsonStr string) error {
 	return types.LoadFromJsonStringWithCallback(modelPriceMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func GetModelMinPriceMap() map[string]float64 {
+	return modelMinPriceMap.ReadAll()
+}
+
+func ModelMinPrice2JSONString() string {
+	return modelMinPriceMap.MarshalJSONString()
+}
+
+func UpdateModelMinPriceByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(modelMinPriceMap, jsonStr, InvalidateExposedDataCache)
+}
+
+// GetModelMinPrice 返回按量计费模型的单次最低收费（美元/次）。
+// 未配置或配置值非法（<=0、NaN、Inf）时返回 (0, false)。
+func GetModelMinPrice(name string) (float64, bool) {
+	name = FormatMatchingModelName(name)
+	price, ok := modelMinPriceMap.Get(name)
+	if !ok {
+		return 0, false
+	}
+	if price <= 0 || math.IsNaN(price) || math.IsInf(price, 0) {
+		return 0, false
+	}
+	return price, true
 }
 
 // GetModelPrice 返回模型的价格，如果模型不存在则返回-1，false

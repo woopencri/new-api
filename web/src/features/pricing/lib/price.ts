@@ -240,6 +240,70 @@ export function formatFixedPrice(
 }
 
 /**
+ * Format per-call minimum charge for token-based models (min price × group ratio)
+ */
+export function formatMinPrice(
+  model: PricingModel,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1,
+  selectedGroup?: string
+): string {
+  if (model.min_price == null) {
+    return '-'
+  }
+
+  const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
+
+  let priceInUSD = model.min_price * displayGroupRatio
+
+  priceInUSD = applyRechargeRate(
+    priceInUSD,
+    showWithRecharge,
+    priceRate,
+    usdExchangeRate
+  )
+
+  return formatCurrencyFromUSD(priceInUSD, {
+    digitsLarge: 4,
+    digitsSmall: 4,
+    abbreviate: false,
+  })
+}
+
+/**
+ * Format per-call minimum charge for a specific group (token-based)
+ */
+export function formatGroupMinPrice(
+  model: PricingModel,
+  group: string,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1,
+  groupRatio: Record<string, number> = {}
+): string {
+  if (model.min_price == null) {
+    return '-'
+  }
+
+  const ratio = getConfiguredGroupRatio(groupRatio, group)
+  let priceInUSD = model.min_price * ratio
+
+  priceInUSD = applyRechargeRate(
+    priceInUSD,
+    showWithRecharge,
+    priceRate,
+    usdExchangeRate
+  )
+
+  return formatCurrencyFromUSD(priceInUSD, {
+    digitsLarge: 4,
+    digitsSmall: 4,
+    abbreviate: false,
+  })
+}
+
+/**
  * Format fixed price for pay-per-request models (minimum price from all groups)
  */
 export function formatRequestPrice(

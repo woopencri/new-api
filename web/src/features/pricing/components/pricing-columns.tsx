@@ -36,6 +36,7 @@ import {
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import {
+  formatMinPrice,
   formatPrice,
   formatRequestPrice,
   stripTrailingZeros,
@@ -53,6 +54,7 @@ export interface PricingColumnsOptions {
   usdExchangeRate?: number
   showRechargePrice?: boolean
   selectedGroup?: string
+  showMinPrice?: boolean
 }
 
 export function usePricingColumns(
@@ -65,6 +67,7 @@ export function usePricingColumns(
     usdExchangeRate = 1,
     showRechargePrice = false,
     selectedGroup,
+    showMinPrice = false,
   } = options
 
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
@@ -314,6 +317,47 @@ export function usePricingColumns(
       size: 110,
       enableSorting: false,
     },
+
+    // Min price column (per-call minimum charge for token-based models)
+    ...(showMinPrice
+      ? ([
+          {
+            id: 'min_price',
+            header: t('Min Price'),
+            cell: ({ row }) => {
+              const model = row.original
+              if (model.quota_type !== 0 || model.min_price == null) {
+                return (
+                  <span className='text-muted-foreground/30 text-xs'>—</span>
+                )
+              }
+
+              const minPrice = stripTrailingZeros(
+                formatMinPrice(
+                  model,
+                  showRechargePrice,
+                  priceRate,
+                  usdExchangeRate,
+                  selectedGroup
+                )
+              )
+
+              return (
+                <div className='max-w-full min-w-0'>
+                  <span className='font-mono text-sm tabular-nums'>
+                    {minPrice}
+                  </span>
+                  <div className='text-muted-foreground/50 text-[10px]'>
+                    / {t('request')}
+                  </div>
+                </div>
+              )
+            },
+            size: 110,
+            enableSorting: false,
+          },
+        ] satisfies ColumnDef<PricingModel>[])
+      : []),
 
     // Vendor column
     {

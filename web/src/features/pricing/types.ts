@@ -40,6 +40,7 @@ export type PricingModel = {
   model_ratio: number
   completion_ratio: number
   model_price?: number
+  min_price?: number | null
   cache_ratio?: number | null
   create_cache_ratio?: number | null
   image_ratio?: number | null
@@ -97,6 +98,7 @@ export type PricingData = {
   usable_group: Record<string, { desc: string; ratio: number }>
   supported_endpoint: Record<string, string>
   auto_groups: string[]
+  display_min_price?: boolean
 }
 
 export type TokenUnit = 'M' | 'K'

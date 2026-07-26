@@ -713,6 +713,147 @@ func TestTryTieredSettleNoClampInRange(t *testing.T) {
 	require.Nil(t, relayInfo.QuotaClamp, "in-range settlement must not record a clamp")
 }
 
+func TestCalculateTextQuotaSummaryAppliesModelMinPrice(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	newRelayInfo := func(priceData types.PriceData) *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{
+			RelayFormat:     types.RelayFormatOpenAI,
+			OriginModelName: "gpt-4o-mini",
+			PriceData:       priceData,
+			StartTime:       time.Now(),
+		}
+	}
+
+	tests := []struct {
+		name            string
+		priceData       types.PriceData
+		usage           *dto.Usage
+		expectedQuota   int
+		expectedApplied bool
+	}{
+		{
+			// metered = (10 + 5*1)*1 = 15 < floor = 0.01*500000*1 = 5000
+			name: "metered cost below floor charges min price",
+			priceData: types.PriceData{
+				ModelRatio:      1,
+				CompletionRatio: 1,
+				ModelMinPrice:   0.01,
+				GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+			},
+			usage:           &dto.Usage{PromptTokens: 10, CompletionTokens: 5},
+			expectedQuota:   5000,
+			expectedApplied: true,
+		},
+		{
+			// metered = 10000 >= floor = 5000, quota unchanged
+			name: "metered cost above floor keeps metered quota",
+			priceData: types.PriceData{
+				ModelRatio:      1,
+				CompletionRatio: 1,
+				ModelMinPrice:   0.01,
+				GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+			},
+			usage:           &dto.Usage{PromptTokens: 10000, CompletionTokens: 0},
+			expectedQuota:   10000,
+			expectedApplied: false,
+		},
+		{
+			// no usage at all: min price must not override the zero-usage rule
+			name: "zero total tokens stays free",
+			priceData: types.PriceData{
+				ModelRatio:      1,
+				CompletionRatio: 1,
+				ModelMinPrice:   0.01,
+				GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+			},
+			usage:           &dto.Usage{PromptTokens: 0, CompletionTokens: 0},
+			expectedQuota:   0,
+			expectedApplied: false,
+		},
+		{
+			// floor scales with group ratio: 0.01*500000*2 = 10000
+			name: "group ratio scales the floor",
+			priceData: types.PriceData{
+				ModelRatio:      1,
+				CompletionRatio: 1,
+				ModelMinPrice:   0.01,
+				GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 2},
+			},
+			usage:           &dto.Usage{PromptTokens: 10, CompletionTokens: 5},
+			expectedQuota:   10000,
+			expectedApplied: true,
+		},
+		{
+			// free model (ModelRatio=0) must never be charged a floor
+			name: "free model skips min price",
+			priceData: types.PriceData{
+				ModelRatio:      0,
+				CompletionRatio: 1,
+				ModelMinPrice:   0.01,
+				GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+			},
+			usage:           &dto.Usage{PromptTokens: 10, CompletionTokens: 5},
+			expectedQuota:   0,
+			expectedApplied: false,
+		},
+		{
+			// per-request pricing is unaffected: quota = 0.02*500000*1 = 10000
+			name: "fixed price branch ignores min price",
+			priceData: types.PriceData{
+				UsePrice:       true,
+				ModelPrice:     0.02,
+				ModelMinPrice:  0.01,
+				GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 1},
+			},
+			usage:           &dto.Usage{PromptTokens: 10, CompletionTokens: 5},
+			expectedQuota:   10000,
+			expectedApplied: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			relayInfo := newRelayInfo(tt.priceData)
+
+			summary := calculateTextQuotaSummary(ctx, relayInfo, tt.usage)
+
+			require.Equal(t, tt.expectedQuota, summary.Quota)
+			require.Equal(t, tt.expectedApplied, summary.MinPriceApplied)
+			require.Nil(t, relayInfo.QuotaClamp)
+		})
+	}
+}
+
+// TestCalculateTextQuotaSummaryMinPriceSaturates guards that an absurd floor
+// still goes through the checked quota conversion: it saturates at the int32
+// policy bound and records the clamp for admin auditing instead of wrapping.
+func TestCalculateTextQuotaSummaryMinPriceSaturates(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	relayInfo := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "gpt-4o-mini",
+		PriceData: types.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			ModelMinPrice:   1e12,
+			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+	usage := &dto.Usage{PromptTokens: 10, CompletionTokens: 5}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+	require.Equal(t, math.MaxInt32, summary.Quota, "oversized floor must clamp, never wrap negative")
+	require.True(t, summary.MinPriceApplied)
+	require.NotNil(t, relayInfo.QuotaClamp, "clamp must be recorded on RelayInfo for admin auditing")
+	require.Equal(t, common.QuotaClampOverflow, relayInfo.QuotaClamp.Kind)
+}
+
 func TestCalculateTextQuotaSummaryFixedPriceAppliesImageCountOnceAndAllowsOverride(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

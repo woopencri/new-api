@@ -49,6 +49,7 @@ export function Pricing() {
     usableGroup,
     endpointMap,
     autoGroups,
+    displayMinPrice,
     isLoading,
     priceRate,
     usdExchangeRate,
@@ -143,6 +144,7 @@ export function Pricing() {
         tokenUnit={tokenUnit}
         showRechargePrice={showRechargePrice}
         selectedGroup={groupFilter}
+        showMinPrice={displayMinPrice}
         onModelClick={handleModelClick}
       />
     )

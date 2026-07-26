@@ -49,6 +49,7 @@ import {
 
 type ModelFormValues = {
   ModelPrice: string
+  ModelMinPrice: string
   ModelRatio: string
   CacheRatio: string
   CreateCacheRatio: string
@@ -57,6 +58,7 @@ type ModelFormValues = {
   AudioRatio: string
   AudioCompletionRatio: string
   ExposeRatioEnabled: boolean
+  DisplayMinPriceEnabled: boolean
   BillingMode: string
   BillingExpr: string
 }
@@ -73,6 +75,7 @@ type ModelRatioFormProps = {
 
 type ModelJsonFieldName =
   | 'ModelPrice'
+  | 'ModelMinPrice'
   | 'ModelRatio'
   | 'CacheRatio'
   | 'CreateCacheRatio'
@@ -91,6 +94,12 @@ const modelJsonFields: Array<{
     labelKey: 'Model fixed pricing',
     descriptionKey:
       'JSON map of model → USD cost per request. Takes precedence over ratio based billing.',
+  },
+  {
+    name: 'ModelMinPrice',
+    labelKey: 'Model Min Price',
+    descriptionKey:
+      'Per-call minimum charge in USD for token-billed models. Charged as min price × group ratio when the metered cost is lower.',
   },
   {
     name: 'ModelRatio',
@@ -306,28 +315,54 @@ export const ModelRatioForm = memo(function ModelRatioForm({
             />
 
             {!isUnsetVariant && (
-              <FormField
-                control={form.control}
-                name='ExposeRatioEnabled'
-                render={({ field }) => (
-                  <SettingsSwitchItem>
-                    <SettingsSwitchContent>
-                      <FormLabel>{t('Expose ratio API')}</FormLabel>
-                      <FormDescription>
-                        {t(
-                          'Allow clients to query configured ratios via `/api/ratio`.'
-                        )}
-                      </FormDescription>
-                    </SettingsSwitchContent>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </SettingsSwitchItem>
-                )}
-              />
+              <>
+                <FormField
+                  control={form.control}
+                  name='ExposeRatioEnabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Expose ratio API')}</FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Allow clients to query configured ratios via `/api/ratio`.'
+                          )}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name='DisplayMinPriceEnabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>
+                          {t('Display model min price in pricing page')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Per-call minimum charge in USD for token-billed models. Charged as min price × group ratio when the metered cost is lower.'
+                          )}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+              </>
             )}
           </div>
         ) : (
@@ -354,6 +389,31 @@ export const ModelRatioForm = memo(function ModelRatioForm({
                     <FormDescription>
                       {t(
                         'Allow clients to query configured ratios via `/api/ratio`.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='DisplayMinPriceEnabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>
+                      {t('Display model min price in pricing page')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Per-call minimum charge in USD for token-billed models. Charged as min price × group ratio when the metered cost is lower.'
                       )}
                     </FormDescription>
                   </SettingsSwitchContent>

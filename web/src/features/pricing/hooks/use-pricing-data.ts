@@ -69,6 +69,7 @@ export function usePricingData() {
     usableGroup: data?.usable_group ?? {},
     endpointMap: data?.supported_endpoint ?? {},
     autoGroups: data?.auto_groups ?? [],
+    displayMinPrice: data?.display_min_price ?? false,
     isLoading,
     error,
     refetch,

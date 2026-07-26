@@ -40,6 +40,8 @@ type textQuotaSummary struct {
 	ModelRatio               float64
 	GroupRatio               float64
 	ModelPrice               float64
+	ModelMinPrice            float64
+	MinPriceApplied          bool
 	CacheCreationRatio       float64
 	CacheCreationRatio5m     float64
 	CacheCreationRatio1h     float64
@@ -189,6 +191,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		ModelRatio:           relayInfo.PriceData.ModelRatio,
 		GroupRatio:           relayInfo.PriceData.GroupRatioInfo.GroupRatio,
 		ModelPrice:           relayInfo.PriceData.ModelPrice,
+		ModelMinPrice:        relayInfo.PriceData.ModelMinPrice,
 		CacheCreationRatio:   relayInfo.PriceData.CacheCreationRatio,
 		CacheCreationRatio5m: relayInfo.PriceData.CacheCreation5mRatio,
 		CacheCreationRatio1h: relayInfo.PriceData.CacheCreation1hRatio,
@@ -309,6 +312,16 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		quotaCalculateDecimal = relayInfo.PriceData.ApplyOtherRatiosToDecimal(quotaCalculateDecimal)
 
+		// 模型底价：按量费用低于 底价×分组倍率 时按底价收取。
+		// 免费场景（ratio 为 0）与无用量（TotalTokens 为 0）不应用。
+		if summary.ModelMinPrice > 0 && summary.TotalTokens > 0 && !ratio.IsZero() {
+			floorDecimal := decimal.NewFromFloat(summary.ModelMinPrice).Mul(dQuotaPerUnit).Mul(dGroupRatio)
+			if quotaCalculateDecimal.LessThan(floorDecimal) {
+				quotaCalculateDecimal = floorDecimal
+				summary.MinPriceApplied = true
+			}
+		}
+
 		if !ratio.IsZero() && quotaCalculateDecimal.LessThanOrEqual(decimal.Zero) {
 			quotaCalculateDecimal = decimal.NewFromInt(1)
 		}
@@ -425,6 +438,12 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other = GenerateTextOtherInfo(ctx, relayInfo, summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, summary.CacheRatio, summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	}
 	appendUsageBillingPathForLog(other, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens), originUsage)
+	if summary.ModelMinPrice > 0 {
+		other["min_price"] = summary.ModelMinPrice
+		if summary.MinPriceApplied {
+			other["min_price_applied"] = true
+		}
+	}
 	if adminRejectReason != "" {
 		other["reject_reason"] = adminRejectReason
 	}

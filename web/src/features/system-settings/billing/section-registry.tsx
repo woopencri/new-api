@@ -28,6 +28,7 @@ import { createSectionRegistry } from '../utils/section-registry'
 
 const getModelDefaults = (settings: BillingSettings) => ({
   ModelPrice: settings.ModelPrice,
+  ModelMinPrice: settings.ModelMinPrice,
   ModelRatio: settings.ModelRatio,
   CacheRatio: settings.CacheRatio,
   CreateCacheRatio: settings.CreateCacheRatio,
@@ -36,6 +37,7 @@ const getModelDefaults = (settings: BillingSettings) => ({
   AudioRatio: settings.AudioRatio,
   AudioCompletionRatio: settings.AudioCompletionRatio,
   ExposeRatioEnabled: settings.ExposeRatioEnabled,
+  DisplayMinPriceEnabled: settings.DisplayMinPriceEnabled,
   BillingMode: settings['billing_setting.billing_mode'],
   BillingExpr: settings['billing_setting.billing_expr'],
 })
