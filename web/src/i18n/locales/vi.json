@@ -5227,6 +5227,8 @@
     "Remove link": "Xóa liên kết",
     "Extra navigation items appended after the built-in links.": "Các mục điều hướng bổ sung được thêm sau các liên kết tích hợp.",
     "Link name is required": "Tên liên kết là bắt buộc",
-    "URL must start with http(s):// or /": "URL phải bắt đầu bằng http(s):// hoặc /"
+    "URL must start with http(s):// or /": "URL phải bắt đầu bằng http(s):// hoặc /",
+    "LinAPI · One-stop AI Model Access Platform": "LinAPI · Nền tảng truy cập mô hình AI một cửa",
+    "Sign up and call a vast range of AI models with a single API key.": "Đăng ký và gọi hàng loạt mô hình AI chỉ với một khóa API."
   }
 }

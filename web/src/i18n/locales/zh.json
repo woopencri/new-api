@@ -5227,6 +5227,8 @@
     "Remove link": "删除链接",
     "Extra navigation items appended after the built-in links.": "追加在内置导航项之后的额外导航链接。",
     "Link name is required": "链接名称不能为空",
-    "URL must start with http(s):// or /": "URL 必须以 http(s):// 或 / 开头"
+    "URL must start with http(s):// or /": "URL 必须以 http(s):// 或 / 开头",
+    "LinAPI · One-stop AI Model Access Platform": "LinAPI · 一站式 AI 模型接入平台",
+    "Sign up and call a vast range of AI models with a single API key.": "注册即可用一个密钥调用海量 AI 模型。"
   }
 }

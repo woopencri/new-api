@@ -5227,6 +5227,8 @@
     "Remove link": "Supprimer le lien",
     "Extra navigation items appended after the built-in links.": "Éléments de navigation supplémentaires ajoutés après les liens intégrés.",
     "Link name is required": "Le nom du lien est requis",
-    "URL must start with http(s):// or /": "L'URL doit commencer par http(s):// ou /"
+    "URL must start with http(s):// or /": "L'URL doit commencer par http(s):// ou /",
+    "LinAPI · One-stop AI Model Access Platform": "LinAPI · Plateforme d'accès unifié aux modèles d'IA",
+    "Sign up and call a vast range of AI models with a single API key.": "Inscrivez-vous et appelez une vaste gamme de modèles d'IA avec une seule clé API."
   }
 }

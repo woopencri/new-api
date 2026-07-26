@@ -5227,6 +5227,8 @@
     "Remove link": "Remove link",
     "Extra navigation items appended after the built-in links.": "Extra navigation items appended after the built-in links.",
     "Link name is required": "Link name is required",
-    "URL must start with http(s):// or /": "URL must start with http(s):// or /"
+    "URL must start with http(s):// or /": "URL must start with http(s):// or /",
+    "LinAPI · One-stop AI Model Access Platform": "LinAPI · One-stop AI Model Access Platform",
+    "Sign up and call a vast range of AI models with a single API key.": "Sign up and call a vast range of AI models with a single API key."
   }
 }

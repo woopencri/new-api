@@ -5227,6 +5227,8 @@
     "Remove link": "Удалить ссылку",
     "Extra navigation items appended after the built-in links.": "Дополнительные пункты навигации, добавляемые после встроенных ссылок.",
     "Link name is required": "Название ссылки обязательно",
-    "URL must start with http(s):// or /": "URL должен начинаться с http(s):// или /"
+    "URL must start with http(s):// or /": "URL должен начинаться с http(s):// или /",
+    "LinAPI · One-stop AI Model Access Platform": "LinAPI · Единая платформа доступа к моделям ИИ",
+    "Sign up and call a vast range of AI models with a single API key.": "Зарегистрируйтесь и вызывайте множество моделей ИИ с одним API-ключом."
   }
 }
