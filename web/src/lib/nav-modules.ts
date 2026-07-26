@@ -22,6 +22,17 @@ export type ModuleAccess = { enabled: boolean; requireAuth: boolean }
 
 export type HeaderNavModule = 'rankings' | 'pricing'
 
+export const BUILTIN_NAV_KEYS = [
+  'home',
+  'console',
+  'pricing',
+  'rankings',
+  'docs',
+  'about',
+] as const
+
+export type BuiltinNavKey = (typeof BUILTIN_NAV_KEYS)[number]
+
 export type HeaderNavModules = {
   home: boolean
   console: boolean
@@ -29,7 +40,8 @@ export type HeaderNavModules = {
   rankings: ModuleAccess
   docs: boolean
   about: boolean
-  [key: string]: boolean | ModuleAccess
+  order: BuiltinNavKey[]
+  labels: Partial<Record<BuiltinNavKey, string>>
 }
 
 const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
@@ -39,6 +51,8 @@ const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
   rankings: { enabled: true, requireAuth: false },
   docs: true,
   about: true,
+  order: [...BUILTIN_NAV_KEYS],
+  labels: {},
 }
 
 const DEFAULTS: Record<HeaderNavModule, ModuleAccess> = {
@@ -51,7 +65,40 @@ function cloneHeaderNavDefaults(): HeaderNavModules {
     ...DEFAULT_HEADER_NAV_MODULES,
     pricing: { ...DEFAULT_HEADER_NAV_MODULES.pricing },
     rankings: { ...DEFAULT_HEADER_NAV_MODULES.rankings },
+    order: [...DEFAULT_HEADER_NAV_MODULES.order],
+    labels: { ...DEFAULT_HEADER_NAV_MODULES.labels },
   }
+}
+
+function isBuiltinNavKey(key: string): key is BuiltinNavKey {
+  return (BUILTIN_NAV_KEYS as readonly string[]).includes(key)
+}
+
+function parseNavOrder(raw: unknown): BuiltinNavKey[] {
+  const order: BuiltinNavKey[] = []
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (typeof item !== 'string') continue
+      if (!isBuiltinNavKey(item)) continue
+      if (order.includes(item)) continue
+      order.push(item)
+    }
+  }
+  for (const key of BUILTIN_NAV_KEYS) {
+    if (!order.includes(key)) order.push(key)
+  }
+  return order
+}
+
+function parseNavLabels(raw: unknown): Partial<Record<BuiltinNavKey, string>> {
+  const labels: Partial<Record<BuiltinNavKey, string>> = {}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return labels
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!isBuiltinNavKey(key)) continue
+    if (typeof value !== 'string' || value.trim() === '') continue
+    labels[key] = value
+  }
+  return labels
 }
 
 export function parseHeaderNavBoolean(
@@ -118,22 +165,36 @@ export function parseHeaderNavModules(raw: unknown): HeaderNavModules {
       result.rankings = parseAccess(value, result.rankings)
       return
     }
+    if (key === 'order') {
+      result.order = parseNavOrder(value)
+      return
+    }
+    if (key === 'labels') {
+      result.labels = parseNavLabels(value)
+      return
+    }
 
-    const fallback = result[key]
     if (
-      typeof fallback === 'boolean' ||
-      typeof value === 'boolean' ||
-      typeof value === 'number' ||
-      typeof value === 'string'
+      key === 'home' ||
+      key === 'console' ||
+      key === 'docs' ||
+      key === 'about'
     ) {
-      result[key] = parseHeaderNavBoolean(
-        value,
-        typeof fallback === 'boolean' ? fallback : true
-      )
+      if (
+        typeof value === 'boolean' ||
+        typeof value === 'number' ||
+        typeof value === 'string'
+      ) {
+        result[key] = parseHeaderNavBoolean(value, result[key])
+      }
     }
   })
 
   return result
+}
+
+export function serializeHeaderNavModules(modules: HeaderNavModules): string {
+  return JSON.stringify(modules)
 }
 
 export function parseHeaderNavModulesFromStatus(

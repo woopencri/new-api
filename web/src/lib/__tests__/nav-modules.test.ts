@@ -19,7 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
-import { parseCustomNavLinks } from '../nav-modules'
+import {
+  BUILTIN_NAV_KEYS,
+  parseCustomNavLinks,
+  parseHeaderNavModules,
+  serializeHeaderNavModules,
+} from '../nav-modules'
 
 describe('parseCustomNavLinks', () => {
   test('parses a valid serialized array', () => {
@@ -101,5 +106,81 @@ describe('parseCustomNavLinks', () => {
         requireAuth: false,
       },
     ])
+  })
+})
+
+describe('parseHeaderNavModules', () => {
+  test('legacy JSON without order/labels falls back to defaults', () => {
+    const modules = parseHeaderNavModules(
+      JSON.stringify({
+        home: false,
+        console: true,
+        pricing: { enabled: false, requireAuth: true },
+        rankings: true,
+        docs: true,
+        about: true,
+      })
+    )
+    assert.deepEqual(modules.order, [...BUILTIN_NAV_KEYS])
+    assert.deepEqual(modules.labels, {})
+    assert.equal(modules.home, false)
+    assert.deepEqual(modules.pricing, { enabled: false, requireAuth: true })
+  })
+
+  test('normalizes order: drops unknown keys, dedupes, appends missing', () => {
+    const modules = parseHeaderNavModules(
+      JSON.stringify({
+        order: ['console', 'bogus', 'console', 'about', 42],
+      })
+    )
+    assert.deepEqual(modules.order, [
+      'console',
+      'about',
+      'home',
+      'pricing',
+      'rankings',
+      'docs',
+    ])
+  })
+
+  test('filters labels: unknown keys, empty strings, non-strings dropped', () => {
+    const modules = parseHeaderNavModules(
+      JSON.stringify({
+        labels: {
+          home: '首页站',
+          bogus: 'x',
+          console: '   ',
+          docs: 123,
+          about: '',
+        },
+      })
+    )
+    assert.deepEqual(modules.labels, { home: '首页站' })
+  })
+
+  test('serialize then parse round-trips', () => {
+    const modules = parseHeaderNavModules(
+      JSON.stringify({
+        home: false,
+        pricing: { enabled: true, requireAuth: true },
+        order: ['docs', 'home'],
+        labels: { docs: 'Wiki' },
+      })
+    )
+    const roundTripped = parseHeaderNavModules(
+      serializeHeaderNavModules(modules)
+    )
+    assert.deepEqual(roundTripped, modules)
+  })
+
+  test('simple modules keep defaults when given object values', () => {
+    const modules = parseHeaderNavModules(
+      JSON.stringify({
+        home: { enabled: false },
+        docs: { enabled: false },
+      })
+    )
+    assert.equal(modules.home, true)
+    assert.equal(modules.docs, true)
   })
 })

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -35,7 +35,15 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { type CustomNavLink, serializeCustomNavLinks } from '@/lib/nav-modules'
+import {
+  BUILTIN_NAV_KEYS,
+  type BuiltinNavKey,
+  type CustomNavLink,
+  type HeaderNavModules,
+  parseHeaderNavModules,
+  serializeCustomNavLinks,
+  serializeHeaderNavModules,
+} from '@/lib/nav-modules'
 
 import {
   SettingsControlChildren,
@@ -47,21 +55,16 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
-import {
-  HEADER_NAV_DEFAULT,
-  type HeaderNavModulesConfig,
-  serializeHeaderNavModules,
-} from './config'
 
 const headerNavSchema = z.object({
-  home: z.boolean(),
-  console: z.boolean(),
-  pricingEnabled: z.boolean(),
-  pricingRequireAuth: z.boolean(),
-  rankingsEnabled: z.boolean(),
-  rankingsRequireAuth: z.boolean(),
-  docs: z.boolean(),
-  about: z.boolean(),
+  builtins: z.array(
+    z.object({
+      key: z.enum(BUILTIN_NAV_KEYS),
+      label: z.string(),
+      enabled: z.boolean(),
+      requireAuth: z.boolean(),
+    })
+  ),
   customLinks: z.array(
     z.object({
       name: z.string().trim().min(1, 'Link name is required'),
@@ -79,44 +82,38 @@ const headerNavSchema = z.object({
 type HeaderNavFormValues = z.infer<typeof headerNavSchema>
 
 type HeaderNavigationSectionProps = {
-  config: HeaderNavModulesConfig
+  config: HeaderNavModules
   initialSerialized: string
   customLinks: CustomNavLink[]
   initialCustomLinksSerialized: string
 }
 
+const isBuiltinEnabled = (
+  config: HeaderNavModules,
+  key: BuiltinNavKey
+): boolean => {
+  if (key === 'pricing' || key === 'rankings') return config[key].enabled
+  return config[key]
+}
+
+const builtinRequireAuth = (
+  config: HeaderNavModules,
+  key: BuiltinNavKey
+): boolean => {
+  if (key === 'pricing' || key === 'rankings') return config[key].requireAuth
+  return false
+}
+
 const toFormValues = (
-  config: HeaderNavModulesConfig,
+  config: HeaderNavModules,
   customLinks: CustomNavLink[]
 ): HeaderNavFormValues => ({
-  home:
-    config.home === undefined ? HEADER_NAV_DEFAULT.home : Boolean(config.home),
-  console:
-    config.console === undefined
-      ? HEADER_NAV_DEFAULT.console
-      : Boolean(config.console),
-  pricingEnabled:
-    config.pricing?.enabled === undefined
-      ? HEADER_NAV_DEFAULT.pricing.enabled
-      : Boolean(config.pricing.enabled),
-  pricingRequireAuth:
-    config.pricing?.requireAuth === undefined
-      ? HEADER_NAV_DEFAULT.pricing.requireAuth
-      : Boolean(config.pricing.requireAuth),
-  rankingsEnabled:
-    config.rankings?.enabled === undefined
-      ? HEADER_NAV_DEFAULT.rankings.enabled
-      : Boolean(config.rankings.enabled),
-  rankingsRequireAuth:
-    config.rankings?.requireAuth === undefined
-      ? HEADER_NAV_DEFAULT.rankings.requireAuth
-      : Boolean(config.rankings.requireAuth),
-  docs:
-    config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
-  about:
-    config.about === undefined
-      ? HEADER_NAV_DEFAULT.about
-      : Boolean(config.about),
+  builtins: config.order.map((key) => ({
+    key,
+    label: config.labels[key] ?? '',
+    enabled: isBuiltinEnabled(config, key),
+    requireAuth: builtinRequireAuth(config, key),
+  })),
   customLinks: customLinks.map((link) => ({ ...link })),
 })
 
@@ -138,7 +135,12 @@ export function HeaderNavigationSection({
     defaultValues: formDefaults,
   })
 
-  const { fields, append, remove } = useFieldArray({
+  const builtinArray = useFieldArray({
+    control: form.control,
+    name: 'builtins',
+  })
+
+  const customLinkArray = useFieldArray({
     control: form.control,
     name: 'customLinks',
   })
@@ -148,22 +150,24 @@ export function HeaderNavigationSection({
   }, [formDefaults, form])
 
   const onSubmit = async (values: HeaderNavFormValues) => {
-    const payload: HeaderNavModulesConfig = {
+    const payload: HeaderNavModules = {
       ...config,
-      home: values.home,
-      console: values.console,
-      docs: values.docs,
-      about: values.about,
-      pricing: {
-        ...(config.pricing ?? HEADER_NAV_DEFAULT.pricing),
-        enabled: values.pricingEnabled,
-        requireAuth: values.pricingRequireAuth,
-      },
-      rankings: {
-        ...(config.rankings ?? HEADER_NAV_DEFAULT.rankings),
-        enabled: values.rankingsEnabled,
-        requireAuth: values.rankingsRequireAuth,
-      },
+      order: values.builtins.map((item) => item.key),
+      labels: {},
+    }
+    for (const item of values.builtins) {
+      if (item.key === 'pricing' || item.key === 'rankings') {
+        payload[item.key] = {
+          enabled: item.enabled,
+          requireAuth: item.requireAuth,
+        }
+      } else {
+        payload[item.key] = item.enabled
+      }
+      const label = item.label.trim()
+      if (label !== '') {
+        payload.labels[item.key] = label
+      }
     }
 
     const serialized = serializeHeaderNavModules(payload)
@@ -192,51 +196,27 @@ export function HeaderNavigationSection({
   }
 
   const resetToDefault = () => {
-    form.reset(toFormValues(HEADER_NAV_DEFAULT, []))
+    form.reset(toFormValues(parseHeaderNavModules(undefined), []))
   }
 
-  type BooleanFieldKey = Exclude<keyof HeaderNavFormValues, 'customLinks'>
-
-  const simpleModules: Array<{
-    key: BooleanFieldKey
-    title: string
-    description: string
-  }> = [
+  const builtinMeta: Record<
+    BuiltinNavKey,
     {
-      key: 'home',
+      title: string
+      description: string
+      requireAuthTitle?: string
+      requireAuthDescription?: string
+    }
+  > = {
+    home: {
       title: t('Home'),
       description: t('Landing page with system overview.'),
     },
-    {
-      key: 'console',
+    console: {
       title: t('Console'),
       description: t('User dashboard and quota controls.'),
     },
-    {
-      key: 'docs',
-      title: t('Docs'),
-      description: t('Documentation or external knowledge base.'),
-    },
-    {
-      key: 'about',
-      title: t('About'),
-      description: t('Static page describing the platform.'),
-    },
-  ]
-
-  const accessModules: Array<{
-    enabledKey: BooleanFieldKey
-    requireAuthKey: BooleanFieldKey
-    requireAuthDependsOn: 'pricingEnabled' | 'rankingsEnabled'
-    title: string
-    description: string
-    requireAuthTitle: string
-    requireAuthDescription: string
-  }> = [
-    {
-      enabledKey: 'pricingEnabled',
-      requireAuthKey: 'pricingRequireAuth',
-      requireAuthDependsOn: 'pricingEnabled',
+    pricing: {
       title: t('Model Square'),
       description: t('Public model catalog and pricing page.'),
       requireAuthTitle: t('Require login to view models'),
@@ -244,10 +224,7 @@ export function HeaderNavigationSection({
         'Visitors must authenticate before accessing the pricing directory.'
       ),
     },
-    {
-      enabledKey: 'rankingsEnabled',
-      requireAuthKey: 'rankingsRequireAuth',
-      requireAuthDependsOn: 'rankingsEnabled',
+    rankings: {
       title: t('Rankings'),
       description: t('Public rankings page based on live usage data.'),
       requireAuthTitle: t('Require login to view rankings'),
@@ -255,7 +232,15 @@ export function HeaderNavigationSection({
         'Visitors must authenticate before accessing the rankings page.'
       ),
     },
-  ]
+    docs: {
+      title: t('Docs'),
+      description: t('Documentation or external knowledge base.'),
+    },
+    about: {
+      title: t('About'),
+      description: t('Static page describing the platform.'),
+    },
+  }
 
   return (
     <SettingsSection title={t('Header navigation')}>
@@ -268,80 +253,108 @@ export function HeaderNavigationSection({
             resetLabel='Reset to default'
             saveLabel='Save navigation'
           />
-          <div className='grid gap-4 md:grid-cols-2'>
-            {simpleModules.map((module) => (
-              <FormField
-                key={module.key}
-                control={form.control}
-                name={module.key}
-                render={({ field }) => (
-                  <SettingsSwitchItem>
-                    <SettingsSwitchContent>
-                      <FormLabel>{module.title}</FormLabel>
-                      <FormDescription>{module.description}</FormDescription>
-                    </SettingsSwitchContent>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </SettingsSwitchItem>
+          <div data-settings-form-span='full' className='min-w-0 space-y-3'>
+            <div className='space-y-0.5'>
+              <p className='text-sm font-medium'>{t('Built-in links')}</p>
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'Rename, reorder, and toggle the built-in navigation items. Leave the name empty to use the default.'
                 )}
-              />
-            ))}
-          </div>
+              </p>
+            </div>
 
-          <div className='grid gap-4 lg:grid-cols-2'>
-            {accessModules.map((module) => (
-              <SettingsControlGroup key={module.enabledKey}>
-                <FormField
-                  control={form.control}
-                  name={module.enabledKey}
-                  render={({ field }) => (
-                    <SettingsSwitchItem>
-                      <SettingsSwitchContent>
-                        <FormLabel>{module.title}</FormLabel>
-                        <FormDescription>{module.description}</FormDescription>
-                      </SettingsSwitchContent>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </SettingsSwitchItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name={module.requireAuthKey}
-                  render={({ field }) => (
-                    <SettingsControlChildren>
-                      <SettingsSwitchItem className='py-2'>
-                        <SettingsSwitchContent>
-                          <FormLabel>{module.requireAuthTitle}</FormLabel>
-                          <FormDescription>
-                            {module.requireAuthDescription}
-                          </FormDescription>
-                        </SettingsSwitchContent>
+            {builtinArray.fields.map((fieldItem, index) => {
+              const meta = builtinMeta[fieldItem.key]
+              return (
+                <SettingsControlGroup key={fieldItem.id}>
+                  <SettingsSwitchItem>
+                    <div className='flex flex-col gap-1'>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon-sm'
+                        aria-label={t('Move up')}
+                        disabled={index === 0}
+                        onClick={() => builtinArray.swap(index, index - 1)}
+                      >
+                        <ArrowUp />
+                      </Button>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon-sm'
+                        aria-label={t('Move down')}
+                        disabled={index === builtinArray.fields.length - 1}
+                        onClick={() => builtinArray.swap(index, index + 1)}
+                      >
+                        <ArrowDown />
+                      </Button>
+                    </div>
+                    <SettingsSwitchContent>
+                      <FormLabel>{meta.title}</FormLabel>
+                      <FormDescription>{meta.description}</FormDescription>
+                      <FormField
+                        control={form.control}
+                        name={`builtins.${index}.label`}
+                        render={({ field }) => (
+                          <FormItem className='mt-2'>
+                            <FormControl>
+                              <Input
+                                placeholder={meta.title}
+                                aria-label={t('Display name')}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </SettingsSwitchContent>
+                    <FormField
+                      control={form.control}
+                      name={`builtins.${index}.enabled`}
+                      render={({ field }) => (
                         <FormControl>
                           <Switch
                             checked={field.value}
                             onCheckedChange={field.onChange}
-                            disabled={!form.watch(module.requireAuthDependsOn)}
                           />
                         </FormControl>
-                        <FormMessage />
-                      </SettingsSwitchItem>
-                    </SettingsControlChildren>
-                  )}
-                />
-              </SettingsControlGroup>
-            ))}
+                      )}
+                    />
+                  </SettingsSwitchItem>
+
+                  {meta.requireAuthTitle ? (
+                    <FormField
+                      control={form.control}
+                      name={`builtins.${index}.requireAuth`}
+                      render={({ field }) => (
+                        <SettingsControlChildren>
+                          <SettingsSwitchItem className='py-2'>
+                            <SettingsSwitchContent>
+                              <FormLabel>{meta.requireAuthTitle}</FormLabel>
+                              <FormDescription>
+                                {meta.requireAuthDescription}
+                              </FormDescription>
+                            </SettingsSwitchContent>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={
+                                  !form.watch(`builtins.${index}.enabled`)
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </SettingsSwitchItem>
+                        </SettingsControlChildren>
+                      )}
+                    />
+                  ) : null}
+                </SettingsControlGroup>
+              )
+            })}
           </div>
 
           <div data-settings-form-span='full' className='min-w-0 space-y-3'>
@@ -352,7 +365,7 @@ export function HeaderNavigationSection({
               </p>
             </div>
 
-            {fields.map((fieldItem, index) => (
+            {customLinkArray.fields.map((fieldItem, index) => (
               <SettingsControlGroup key={fieldItem.id}>
                 <div className='grid gap-3 py-1 md:grid-cols-2'>
                   <FormField
@@ -434,16 +447,38 @@ export function HeaderNavigationSection({
                       </FormItem>
                     )}
                   />
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='text-destructive hover:text-destructive ml-auto'
-                    onClick={() => remove(index)}
-                  >
-                    <Trash2 />
-                    {t('Remove link')}
-                  </Button>
+                  <div className='ml-auto flex items-center gap-1'>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='icon-sm'
+                      aria-label={t('Move up')}
+                      disabled={index === 0}
+                      onClick={() => customLinkArray.swap(index, index - 1)}
+                    >
+                      <ArrowUp />
+                    </Button>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='icon-sm'
+                      aria-label={t('Move down')}
+                      disabled={index === customLinkArray.fields.length - 1}
+                      onClick={() => customLinkArray.swap(index, index + 1)}
+                    >
+                      <ArrowDown />
+                    </Button>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='sm'
+                      className='text-destructive hover:text-destructive'
+                      onClick={() => customLinkArray.remove(index)}
+                    >
+                      <Trash2 />
+                      {t('Remove link')}
+                    </Button>
+                  </div>
                 </div>
               </SettingsControlGroup>
             ))}
@@ -453,7 +488,7 @@ export function HeaderNavigationSection({
               variant='outline'
               size='sm'
               onClick={() =>
-                append({
+                customLinkArray.append({
                   name: '',
                   url: '',
                   newWindow: true,

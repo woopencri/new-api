@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useStatus } from '@/hooks/use-status'
 import {
+  type BuiltinNavKey,
   parseCustomNavLinksFromStatus,
   parseHeaderNavModulesFromStatus,
 } from '@/lib/nav-modules'
@@ -72,42 +73,49 @@ export function useTopNavLinks(): TopNavLink[] {
 
   const links: TopNavLink[] = []
 
-  // Home
-  if (modules?.home !== false) {
-    links.push({ title: t('Home'), href: '/' })
+  // Admin-defined labels override the built-in i18n titles
+  const title = (key: BuiltinNavKey, fallback: string): string =>
+    modules.labels[key] || fallback
+
+  const builtinLinks: Record<BuiltinNavKey, TopNavLink | null> = {
+    home:
+      modules.home !== false
+        ? { title: title('home', t('Home')), href: '/' }
+        : null,
+    console:
+      modules.console !== false
+        ? { title: title('console', t('Console')), href: '/dashboard' }
+        : null,
+    pricing: modules.pricing.enabled
+      ? {
+          title: title('pricing', t('Model Square')),
+          href: '/pricing',
+          requiresAuth: modules.pricing.requireAuth && !isAuthed,
+        }
+      : null,
+    rankings: modules.rankings.enabled
+      ? {
+          title: title('rankings', t('Rankings')),
+          href: '/rankings',
+          requiresAuth: modules.rankings.requireAuth && !isAuthed,
+        }
+      : null,
+    docs: null,
+    about:
+      modules.about !== false
+        ? { title: title('about', t('About')), href: '/about' }
+        : null,
   }
 
-  // Console -> /dashboard (new console path)
-  if (modules?.console !== false) {
-    links.push({ title: t('Console'), href: '/dashboard' })
+  if (modules.docs !== false) {
+    builtinLinks.docs = docsLink
+      ? { title: title('docs', t('Docs')), href: docsLink, external: true }
+      : { title: title('docs', t('Docs')), href: '/docs' }
   }
 
-  // Pricing
-  const pricing = modules?.pricing
-  if (pricing && typeof pricing === 'object' && pricing.enabled) {
-    const requiresAuth = pricing.requireAuth && !isAuthed
-    links.push({ title: t('Model Square'), href: '/pricing', requiresAuth })
-  }
-
-  // Rankings
-  const rankings = modules?.rankings
-  if (rankings && typeof rankings === 'object' && rankings.enabled) {
-    const requiresAuth = rankings.requireAuth && !isAuthed
-    links.push({ title: t('Rankings'), href: '/rankings', requiresAuth })
-  }
-
-  // Docs (supports external links)
-  if (modules?.docs !== false) {
-    if (docsLink) {
-      links.push({ title: t('Docs'), href: docsLink, external: true })
-    } else {
-      links.push({ title: t('Docs'), href: '/docs' })
-    }
-  }
-
-  // About
-  if (modules?.about !== false) {
-    links.push({ title: t('About'), href: '/about' })
+  for (const key of modules.order) {
+    const link = builtinLinks[key]
+    if (link) links.push(link)
   }
 
   // Admin-defined custom links appended after built-in items

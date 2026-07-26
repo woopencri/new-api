@@ -16,13 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { parseCustomNavLinks, serializeCustomNavLinks } from '@/lib/nav-modules'
+import {
+  parseCustomNavLinks,
+  parseHeaderNavModules,
+  serializeCustomNavLinks,
+  serializeHeaderNavModules,
+} from '@/lib/nav-modules'
 
 import { SystemInfoSection } from '../general/system-info-section'
 import {
-  parseHeaderNavModules,
   parseSidebarModulesAdmin,
-  serializeHeaderNavModules,
   serializeSidebarModulesAdmin,
 } from '../maintenance/config'
 import { HeaderNavigationSection } from '../maintenance/header-navigation-section'
