@@ -101,6 +101,7 @@ type User struct {
 	AffQuota         int                        `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
 	AffHistoryQuota  int                        `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
 	InviterId        int                        `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
+	AffPendingReward bool                       `json:"-" gorm:"column:aff_pending_reward"` // 邀请奖励待发放：被邀请人首次充值/兑换后发放
 	DeletedAt        gorm.DeletedAt             `gorm:"index"`
 	LinuxDOId        string                     `json:"linux_do_id" gorm:"column:linux_do_id;index"`
 	Setting          string                     `json:"setting" gorm:"type:text;column:setting"`
@@ -500,6 +501,49 @@ func inviteUser(inviterId int) (err error) {
 	return DB.Save(user).Error
 }
 
+// SettleAffReward 在被邀请人首次充值或兑换码兑换成功后发放邀请奖励（有效推荐）。
+// 通过 aff_pending_reward 的 CAS 翻转保证并发与重复调用下最多发放一次；
+// 合规未确认或奖励额度为 0 时保留待发放标记，待条件满足后的下一次充值/兑换再结算。
+func SettleAffReward(userId int) {
+	if userId == 0 || !operation_setting.IsPaymentComplianceConfirmed() {
+		return
+	}
+	if common.QuotaForInviter <= 0 && common.QuotaForInvitee <= 0 {
+		return
+	}
+	var user User
+	if err := DB.Select("id", "inviter_id", "aff_pending_reward").First(&user, "id = ?", userId).Error; err != nil {
+		return
+	}
+	if !user.AffPendingReward || user.InviterId == 0 {
+		return
+	}
+	result := DB.Model(&User{}).
+		Where("id = ? AND aff_pending_reward = ?", userId, true).
+		Update("aff_pending_reward", false)
+	if result.Error != nil {
+		common.SysError("failed to settle aff reward: " + result.Error.Error())
+		return
+	}
+	if result.RowsAffected == 0 {
+		return // 已被并发结算
+	}
+	if common.QuotaForInvitee > 0 {
+		if err := IncreaseUserQuota(userId, common.QuotaForInvitee, true); err == nil {
+			RecordLog(userId, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+		} else {
+			common.SysError("failed to grant invitee reward: " + err.Error())
+		}
+	}
+	if common.QuotaForInviter > 0 {
+		if err := inviteUser(user.InviterId); err == nil {
+			RecordLog(user.InviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+		} else {
+			common.SysError("failed to grant inviter reward: " + err.Error())
+		}
+	}
+}
+
 func (user *User) TransferAffQuotaToQuota(quota int) error {
 	// 检查quota是否小于最小额度
 	if float64(quota) < common.QuotaPerUnit {
@@ -596,6 +640,10 @@ func (user *User) Insert(inviterId int) error {
 			}
 			user.Quota = common.QuotaForNewUser
 			user.AffCode = common.GetRandomString(4)
+			if inviterId != 0 {
+				user.InviterId = inviterId
+				user.AffPendingReward = true
+			}
 
 			// 初始化用户设置，包括默认的边栏配置
 			if user.Setting == "" {
@@ -633,17 +681,7 @@ func (user *User) finishInsert(inviterId int) {
 	if common.QuotaForNewUser > 0 {
 		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
 	}
-	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
-		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
-		}
-		if common.QuotaForInviter > 0 {
-			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
-		}
-	}
+	// 邀请奖励延迟到被邀请人首次充值/兑换成功后发放，见 SettleAffReward
 }
 
 func (user *User) FinishInsert(inviterId int) {
@@ -660,6 +698,10 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		}
 		user.Quota = common.QuotaForNewUser
 		user.AffCode = common.GetRandomString(4)
+		if inviterId != 0 {
+			user.InviterId = inviterId
+			user.AffPendingReward = true
+		}
 
 		// 初始化用户设置
 		if user.Setting == "" {
@@ -690,16 +732,7 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 	if common.QuotaForNewUser > 0 {
 		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
 	}
-	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
-		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
-		}
-		if common.QuotaForInviter > 0 {
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
-		}
-	}
+	// 邀请奖励延迟到被邀请人首次充值/兑换成功后发放，见 SettleAffReward
 }
 
 func (user *User) Update(updatePassword bool) error {

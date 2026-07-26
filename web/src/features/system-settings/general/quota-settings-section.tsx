@@ -62,6 +62,7 @@ const quotaSchema = z.object({
   quota_setting: z.object({
     enable_free_model_pre_consume: z.boolean(),
   }),
+  AffEnabled: z.boolean(),
 })
 
 type QuotaFormValues = z.infer<typeof quotaSchema>
@@ -200,7 +201,7 @@ export function QuotaSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t(
-                      'Quota given to users who invite others ({{formattedQuota}})',
+                      'Quota granted to the inviter after the invited user completes a first top-up or redemption ({{formattedQuota}})',
                       {
                         formattedQuota: formatQuotaInputValue(field.value),
                       }
@@ -228,14 +229,43 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Quota given to invited users ({{formattedQuota}})', {
-                      formattedQuota: formatQuotaInputValue(field.value),
-                    })}
+                    {t(
+                      'Quota granted to the invited user after their first top-up or redemption ({{formattedQuota}})',
+                      {
+                        formattedQuota: formatQuotaInputValue(field.value),
+                      }
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='AffEnabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Referral Program')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'When disabled, the referral rewards card is hidden from the wallet page.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
 
             <SettingsFormGridItem span='full'>
               <FormField

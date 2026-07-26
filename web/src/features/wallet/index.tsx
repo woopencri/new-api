@@ -81,6 +81,7 @@ export function Wallet(props: WalletProps) {
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
 
   const { status } = useStatus()
+  const affEnabled = status?.aff_enabled !== false
   const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
 
@@ -337,15 +338,17 @@ export function Wallet(props: WalletProps) {
               />
             </div>
 
-            <AffiliateRewardsCard
-              user={user}
-              affiliateLink={affiliateLink}
-              onTransfer={() => setTransferDialogOpen(true)}
-              complianceConfirmed={
-                topupInfo?.payment_compliance_confirmed !== false
-              }
-              loading={affiliateLoading}
-            />
+            {affEnabled && (
+              <AffiliateRewardsCard
+                user={user}
+                affiliateLink={affiliateLink}
+                onTransfer={() => setTransferDialogOpen(true)}
+                complianceConfirmed={
+                  topupInfo?.payment_compliance_confirmed !== false
+                }
+                loading={affiliateLoading}
+              />
+            )}
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
@@ -363,13 +366,15 @@ export function Wallet(props: WalletProps) {
         usdExchangeRate={effectiveUsdExchangeRate}
       />
 
-      <TransferDialog
-        open={transferDialogOpen}
-        onOpenChange={setTransferDialogOpen}
-        onConfirm={handleTransfer}
-        availableQuota={user?.aff_quota ?? 0}
-        transferring={transferring}
-      />
+      {affEnabled && (
+        <TransferDialog
+          open={transferDialogOpen}
+          onOpenChange={setTransferDialogOpen}
+          onConfirm={handleTransfer}
+          availableQuota={user?.aff_quota ?? 0}
+          transferring={transferring}
+        />
+      )}
 
       <BillingHistoryDialog
         open={billingDialogOpen}

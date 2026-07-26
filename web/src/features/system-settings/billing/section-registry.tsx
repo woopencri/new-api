@@ -72,6 +72,7 @@ const BILLING_SECTIONS = [
             enable_free_model_pre_consume:
               settings['quota_setting.enable_free_model_pre_consume'],
           },
+          AffEnabled: settings.AffEnabled,
         }}
         complianceConfirmed={
           (settings['payment_setting.compliance_confirmed'] ?? false) &&
