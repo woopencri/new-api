@@ -61,6 +61,7 @@ import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { safeJsonParse } from '../utils/json-parser'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
+import { MinPriceExemptEditor } from './min-price-exempt-editor'
 
 type GroupFormValues = {
   GroupRatio: string
@@ -70,6 +71,7 @@ type GroupFormValues = {
   AutoGroups: string
   DefaultUseAutoGroup: boolean
   GroupSpecialUsableGroup: string
+  MinPriceExemptGroups: string
 }
 
 type GroupRatioFormProps = {
@@ -180,6 +182,14 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               groupOptions={groupNames}
               onChange={(value) =>
                 handleFieldChange('GroupSpecialUsableGroup', value)
+              }
+            />
+
+            <MinPriceExemptEditor
+              value={form.watch('MinPriceExemptGroups')}
+              groupOptions={groupNames}
+              onChange={(value) =>
+                handleFieldChange('MinPriceExemptGroups', value)
               }
             />
 
@@ -357,6 +367,32 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   <FormDescription>
                     {t(
                       'Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='MinPriceExemptGroups'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Min price exempt groups')}</FormLabel>
+                  <FormControl>
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                      heightClassName='h-40 min-h-40 max-h-40'
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'JSON map of group → true. Groups present with true skip the minimum charge.'
                     )}
                   </FormDescription>
                   <FormMessage />

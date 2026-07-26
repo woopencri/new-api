@@ -5233,6 +5233,13 @@
     "Link name is required": "リンク名は必須です",
     "URL must start with http(s):// or /": "URLはhttp(s)://または/で始まる必要があります",
     "LinAPI · One-stop AI Model Access Platform": "LinAPI · ワンストップAIモデル接続プラットフォーム",
-    "Sign up and call a vast range of AI models with a single API key.": "登録すれば、1つのAPIキーで多彩なAIモデルを呼び出せます。"
+    "Sign up and call a vast range of AI models with a single API key.": "登録すれば、1つのAPIキーで多彩なAIモデルを呼び出せます。",
+    "Minimum charge exemption": "最低単価の適用除外",
+    "Groups toggled on below skip the per-model minimum charge.": "以下でオンにしたグループには、モデルごとの最低単価が適用されません。",
+    "Min price exempt groups": "最低単価の適用除外グループ",
+    "JSON map of group → true. Groups present with true skip the minimum charge.": "グループ → true の JSON マップ。true のグループには最低単価が適用されません。",
+    "Minimum Charge": "最低料金",
+    "Applied": "適用済み",
+    "No groups configured yet.": "グループはまだ設定されていません。"
   }
 }

@@ -93,6 +93,9 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var modelMinPrice float64
 	if !usePrice {
 		modelMinPrice, _ = ratio_setting.GetModelMinPrice(info.OriginModelName)
+		if modelMinPrice > 0 && ratio_setting.IsGroupMinPriceExempt(info.UsingGroup) {
+			modelMinPrice = 0
+		}
 		preConsumedTokens := common.Max(promptTokens, common.PreConsumedQuota)
 		if meta.MaxTokens != 0 {
 			preConsumedTokens += meta.MaxTokens

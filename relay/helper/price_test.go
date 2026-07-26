@@ -181,6 +181,55 @@ func TestModelPriceHelperTieredRejectsPreConsumeOverflow(t *testing.T) {
 	require.Equal(t, common.QuotaClampOverflow, clamp.Kind)
 }
 
+func TestModelPriceHelperMinPriceGroupExemption(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	savedModelMinPrices := ratio_setting.ModelMinPrice2JSONString()
+	savedModelRatios := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+		require.NoError(t, ratio_setting.UpdateModelMinPriceByJSONString(savedModelMinPrices))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedModelRatios))
+	})
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"group_ratio_setting.group_ratio":             `{"default":1,"vip":1}`,
+		"group_ratio_setting.min_price_exempt_groups": `{"vip":true,"default":false}`,
+	}))
+	require.NoError(t, ratio_setting.UpdateModelMinPriceByJSONString(`{"min-price-model":0.05}`))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"min-price-model":1}`))
+
+	cases := []struct {
+		name     string
+		group    string
+		expected float64
+	}{
+		{name: "exempt group drops min price", group: "vip", expected: 0},
+		{name: "explicit false keeps min price", group: "default", expected: 0.05},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Set("group", tc.group)
+			info := &relaycommon.RelayInfo{
+				OriginModelName: "min-price-model",
+				UserGroup:       tc.group,
+				UsingGroup:      tc.group,
+			}
+
+			priceData, err := ModelPriceHelper(ctx, info, 100, &types.TokenCountMeta{})
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, priceData.ModelMinPrice)
+		})
+	}
+}
+
 func TestModelPriceHelperRequestBillingRatiosOnlyApplyToFixedPrice(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	savedModelPrices := ratio_setting.ModelPrice2JSONString()

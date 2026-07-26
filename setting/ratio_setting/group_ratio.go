@@ -31,6 +31,7 @@ type GroupRatioSetting struct {
 	GroupRatio              *types.RWMap[string, float64]            `json:"group_ratio"`
 	GroupGroupRatio         *types.RWMap[string, map[string]float64] `json:"group_group_ratio"`
 	GroupSpecialUsableGroup *types.RWMap[string, map[string]string]  `json:"group_special_usable_group"`
+	MinPriceExemptGroups    *types.RWMap[string, bool]               `json:"min_price_exempt_groups"`
 }
 
 var groupRatioSetting GroupRatioSetting
@@ -46,6 +47,7 @@ func init() {
 		GroupSpecialUsableGroup: groupSpecialUsableGroup,
 		GroupRatio:              groupRatioMap,
 		GroupGroupRatio:         groupGroupRatioMap,
+		MinPriceExemptGroups:    types.NewRWMap[string, bool](),
 	}
 
 	config.GlobalConfig.Register("group_ratio_setting", &groupRatioSetting)
@@ -57,6 +59,17 @@ func GetGroupRatioSetting() *GroupRatioSetting {
 		groupRatioSetting.GroupSpecialUsableGroup.AddAll(defaultGroupSpecialUsableGroup)
 	}
 	return &groupRatioSetting
+}
+
+// IsGroupMinPriceExempt reports whether the given group is exempt from the
+// per-model minimum charge. Missing entries and false values both mean "not exempt".
+func IsGroupMinPriceExempt(group string) bool {
+	m := groupRatioSetting.MinPriceExemptGroups
+	if m == nil {
+		return false
+	}
+	v, ok := m.Get(group)
+	return ok && v
 }
 
 func GetGroupRatioCopy() map[string]float64 {

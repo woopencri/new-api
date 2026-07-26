@@ -5233,6 +5233,13 @@
     "Link name is required": "Tên liên kết là bắt buộc",
     "URL must start with http(s):// or /": "URL phải bắt đầu bằng http(s):// hoặc /",
     "LinAPI · One-stop AI Model Access Platform": "LinAPI · Nền tảng truy cập mô hình AI một cửa",
-    "Sign up and call a vast range of AI models with a single API key.": "Đăng ký và gọi hàng loạt mô hình AI chỉ với một khóa API."
+    "Sign up and call a vast range of AI models with a single API key.": "Đăng ký và gọi hàng loạt mô hình AI chỉ với một khóa API.",
+    "Minimum charge exemption": "Miễn mức phí tối thiểu",
+    "Groups toggled on below skip the per-model minimum charge.": "Các nhóm được bật bên dưới sẽ bỏ qua mức phí tối thiểu theo mô hình.",
+    "Min price exempt groups": "Nhóm được miễn mức phí tối thiểu",
+    "JSON map of group → true. Groups present with true skip the minimum charge.": "Bản đồ JSON nhóm → true. Các nhóm có giá trị true sẽ bỏ qua mức phí tối thiểu.",
+    "Minimum Charge": "Phí tối thiểu",
+    "Applied": "Đã áp dụng",
+    "No groups configured yet.": "Chưa có nhóm nào được cấu hình."
   }
 }

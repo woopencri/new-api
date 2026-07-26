@@ -280,6 +280,15 @@ function BillingBreakdown(props: {
     }
   }
 
+  if (other.min_price !== undefined && other.min_price > 0) {
+    rows.push({
+      label: t('Minimum Charge'),
+      value: other.min_price_applied
+        ? `${fmtPrice(other.min_price)} (${t('Applied')})`
+        : fmtPrice(other.min_price),
+    })
+  }
+
   const userGR = other.user_group_ratio
   const isUserGR = userGR != null && Number.isFinite(userGR) && userGR !== -1
   const effectiveGR = isUserGR ? userGR : other.group_ratio

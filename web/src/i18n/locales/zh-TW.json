@@ -5233,6 +5233,13 @@
     "Link name is required": "連結名稱不能為空",
     "URL must start with http(s):// or /": "URL 必須以 http(s):// 或 / 開頭",
     "LinAPI · One-stop AI Model Access Platform": "LinAPI · 一站式 AI 模型接入平台",
-    "Sign up and call a vast range of AI models with a single API key.": "註冊即可用一個金鑰呼叫海量 AI 模型。"
+    "Sign up and call a vast range of AI models with a single API key.": "註冊即可用一個金鑰呼叫海量 AI 模型。",
+    "Minimum charge exemption": "底價豁免",
+    "Groups toggled on below skip the per-model minimum charge.": "開啟開關的分組不套用按模型設定的最低單價。",
+    "Min price exempt groups": "底價豁免分組",
+    "JSON map of group → true. Groups present with true skip the minimum charge.": "分組 → true 的 JSON 映射，值為 true 的分組不套用底價。",
+    "Minimum Charge": "最低收費",
+    "Applied": "已觸發",
+    "No groups configured yet.": "尚未設定任何分組。"
   }
 }

@@ -5233,6 +5233,13 @@
     "Link name is required": "Link name is required",
     "URL must start with http(s):// or /": "URL must start with http(s):// or /",
     "LinAPI · One-stop AI Model Access Platform": "LinAPI · One-stop AI Model Access Platform",
-    "Sign up and call a vast range of AI models with a single API key.": "Sign up and call a vast range of AI models with a single API key."
+    "Sign up and call a vast range of AI models with a single API key.": "Sign up and call a vast range of AI models with a single API key.",
+    "Minimum charge exemption": "Minimum charge exemption",
+    "Groups toggled on below skip the per-model minimum charge.": "Groups toggled on below skip the per-model minimum charge.",
+    "Min price exempt groups": "Min price exempt groups",
+    "JSON map of group → true. Groups present with true skip the minimum charge.": "JSON map of group → true. Groups present with true skip the minimum charge.",
+    "Minimum Charge": "Minimum Charge",
+    "Applied": "Applied",
+    "No groups configured yet.": "No groups configured yet."
   }
 }

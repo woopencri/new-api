@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,6 +47,25 @@ func TestGetModelMinPriceRejectsNaNAndInf(t *testing.T) {
 	price, ok = GetModelMinPrice("inf-model")
 	assert.False(t, ok)
 	assert.Zero(t, price)
+}
+
+func TestIsGroupMinPriceExempt(t *testing.T) {
+	savedMap := groupRatioSetting.MinPriceExemptGroups
+	t.Cleanup(func() { groupRatioSetting.MinPriceExemptGroups = savedMap })
+
+	m := types.NewRWMap[string, bool]()
+	m.Set("vip", true)
+	m.Set("svip", false)
+	groupRatioSetting.MinPriceExemptGroups = m
+
+	assert.True(t, IsGroupMinPriceExempt("vip"))
+	// 显式 false 与缺失等价：不豁免
+	assert.False(t, IsGroupMinPriceExempt("svip"))
+	assert.False(t, IsGroupMinPriceExempt("default"))
+
+	// config 反射反序列化可能产生 nil 指针，nil map 视为无豁免
+	groupRatioSetting.MinPriceExemptGroups = nil
+	assert.False(t, IsGroupMinPriceExempt("vip"))
 }
 
 func TestUpdateModelMinPriceByJSONStringRejectsInvalidJSON(t *testing.T) {

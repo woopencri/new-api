@@ -181,6 +181,10 @@ export interface LogOtherData {
   audio_ratio?: number
   audio_completion_ratio?: number
   frt?: number
+  // Per-model minimum charge (USD per request); min_price_applied is true when
+  // the computed usage cost was below min_price and got raised to it.
+  min_price?: number
+  min_price_applied?: boolean
   // Tiered (expression-based) billing fields, set by backend when
   // billing_mode === 'tiered_expr'. expr_b64 is the base64-encoded billing
   // expression and matched_tier is the label of the tier that fired.

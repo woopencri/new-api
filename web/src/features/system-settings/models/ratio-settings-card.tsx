@@ -134,6 +134,7 @@ const createGroupSchema = (t: Translate) =>
     }),
     DefaultUseAutoGroup: z.boolean(),
     GroupSpecialUsableGroup: createJsonStringField(t),
+    MinPriceExemptGroups: createJsonStringField(t),
   })
 
 type ModelFormValues = z.infer<ReturnType<typeof createModelSchema>>
@@ -212,6 +213,9 @@ export function RatioSettingsCard({
     GroupSpecialUsableGroup: normalizeJsonString(
       groupDefaults.GroupSpecialUsableGroup
     ),
+    MinPriceExemptGroups: normalizeJsonString(
+      groupDefaults.MinPriceExemptGroups
+    ),
   })
   const modelSchema = useMemo(() => createModelSchema(t), [t])
   const groupSchema = useMemo(() => createGroupSchema(t), [t])
@@ -249,6 +253,9 @@ export function RatioSettingsCard({
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
       GroupSpecialUsableGroup: formatJsonForTextarea(
         groupDefaults.GroupSpecialUsableGroup
+      ),
+      MinPriceExemptGroups: formatJsonForTextarea(
+        groupDefaults.MinPriceExemptGroups
       ),
     },
   })
@@ -302,6 +309,9 @@ export function RatioSettingsCard({
       GroupSpecialUsableGroup: normalizeJsonString(
         groupDefaults.GroupSpecialUsableGroup
       ),
+      MinPriceExemptGroups: normalizeJsonString(
+        groupDefaults.MinPriceExemptGroups
+      ),
     }
 
     groupForm.reset({
@@ -313,6 +323,9 @@ export function RatioSettingsCard({
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
       GroupSpecialUsableGroup: formatJsonForTextarea(
         groupDefaults.GroupSpecialUsableGroup
+      ),
+      MinPriceExemptGroups: formatJsonForTextarea(
+        groupDefaults.MinPriceExemptGroups
       ),
     })
   }, [groupDefaults, groupForm])
@@ -374,12 +387,14 @@ export function RatioSettingsCard({
         GroupSpecialUsableGroup: normalizeJsonString(
           values.GroupSpecialUsableGroup
         ),
+        MinPriceExemptGroups: normalizeJsonString(values.MinPriceExemptGroups),
       }
 
       // Map form field names to API keys (most are 1:1, except GroupSpecialUsableGroup)
       const apiKeyMap: Record<string, string> = {
         GroupSpecialUsableGroup:
           'group_ratio_setting.group_special_usable_group',
+        MinPriceExemptGroups: 'group_ratio_setting.min_price_exempt_groups',
       }
 
       const updates = (
