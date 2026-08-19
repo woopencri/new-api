@@ -75,7 +75,7 @@ export function AffiliateRewardsCard({
             </h3>
             <p className='text-muted-foreground line-clamp-1 text-xs'>
               {t(
-                'Rewards are granted after invited users complete their first top-up or redemption. Transfer accumulated rewards to your balance anytime.'
+                'Earn 10% of each of your invited users\' first three top-ups or redemptions. Transfer accumulated rewards to your balance anytime.'
               )}
             </p>
           </div>

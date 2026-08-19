@@ -101,7 +101,8 @@ type User struct {
 	AffQuota         int                        `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
 	AffHistoryQuota  int                        `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
 	InviterId        int                        `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
-	AffPendingReward bool                       `json:"-" gorm:"column:aff_pending_reward"` // 邀请奖励待发放：被邀请人首次充值/兑换后发放
+	AffRebateCount   int                        `json:"-" gorm:"type:int;default:0;column:aff_rebate_count"` // 已结算的邀请返利次数
+	AffPendingReward bool                       `json:"-" gorm:"column:aff_pending_reward"`                  // 邀请奖励待发放：被邀请人首次充值/兑换后发放
 	DeletedAt        gorm.DeletedAt             `gorm:"index"`
 	LinuxDOId        string                     `json:"linux_do_id" gorm:"column:linux_do_id;index"`
 	Setting          string                     `json:"setting" gorm:"type:text;column:setting"`
@@ -490,57 +491,72 @@ func HardDeleteUserById(id int) error {
 	return user.HardDelete()
 }
 
-func inviteUser(inviterId int) (err error) {
-	user, err := GetUserById(inviterId, true)
-	if err != nil {
-		return err
-	}
-	user.AffCount++
-	user.AffQuota += common.QuotaForInviter
-	user.AffHistoryQuota += common.QuotaForInviter
-	return DB.Save(user).Error
-}
+const (
+	maxAffiliateRebateCount = 3
+	affiliateRebateRate     = 0.10
+)
 
-// SettleAffReward 在被邀请人首次充值或兑换码兑换成功后发放邀请奖励（有效推荐）。
-// 通过 aff_pending_reward 的 CAS 翻转保证并发与重复调用下最多发放一次；
-// 合规未确认或奖励额度为 0 时保留待发放标记，待条件满足后的下一次充值/兑换再结算。
-func SettleAffReward(userId int) {
+// SettleAffReward 在被邀请人每次充值或兑换码兑换成功后结算返利。
+// 前三次有效到账事件计数，返利为到账额度的 10%。结算与计数在同一事务中完成，
+// 并锁定双方用户，保证重复回调和并发请求不会重复发放。
+func SettleAffReward(userId int, creditedQuota int) {
 	if userId == 0 || !operation_setting.IsPaymentComplianceConfirmed() {
 		return
 	}
-	if common.QuotaForInviter <= 0 && common.QuotaForInvitee <= 0 {
+	if creditedQuota <= 0 {
 		return
 	}
-	var user User
-	if err := DB.Select("id", "inviter_id", "aff_pending_reward").First(&user, "id = ?", userId).Error; err != nil {
-		return
-	}
-	if !user.AffPendingReward || user.InviterId == 0 {
-		return
-	}
-	result := DB.Model(&User{}).
-		Where("id = ? AND aff_pending_reward = ?", userId, true).
-		Update("aff_pending_reward", false)
-	if result.Error != nil {
-		common.SysError("failed to settle aff reward: " + result.Error.Error())
-		return
-	}
-	if result.RowsAffected == 0 {
-		return // 已被并发结算
-	}
-	if common.QuotaForInvitee > 0 {
-		if err := IncreaseUserQuota(userId, common.QuotaForInvitee, true); err == nil {
-			RecordLog(userId, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
-		} else {
-			common.SysError("failed to grant invitee reward: " + err.Error())
+
+	var inviterId, rebate, rebateCount int
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var invitee User
+		if err := lockForUpdate(tx).Select("id", "inviter_id", "aff_rebate_count", "aff_pending_reward").First(&invitee, "id = ?", userId).Error; err != nil {
+			return err
 		}
-	}
-	if common.QuotaForInviter > 0 {
-		if err := inviteUser(user.InviterId); err == nil {
-			RecordLog(user.InviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-		} else {
-			common.SysError("failed to grant inviter reward: " + err.Error())
+		if invitee.InviterId == 0 || invitee.AffRebateCount >= maxAffiliateRebateCount {
+			return nil
 		}
+
+		var inviter User
+		if err := lockForUpdate(tx).Select("id").First(&inviter, "id = ?", invitee.InviterId).Error; err != nil {
+			return err
+		}
+		var clamp *common.QuotaClamp
+		rebate, clamp = common.QuotaRoundChecked(float64(creditedQuota) * affiliateRebateRate)
+		if clamp != nil {
+			common.SysError("affiliate rebate rejected: " + clamp.Error())
+			return nil
+		}
+		updates := map[string]interface{}{
+			"aff_rebate_count":   gorm.Expr("aff_rebate_count + ?", 1),
+			"aff_pending_reward": false,
+		}
+		if err := tx.Model(&User{}).Where("id = ?", invitee.Id).Updates(updates).Error; err != nil {
+			return err
+		}
+		inviterUpdates := map[string]interface{}{}
+		if invitee.AffRebateCount == 0 {
+			inviterUpdates["aff_count"] = gorm.Expr("aff_count + ?", 1)
+		}
+		if rebate > 0 {
+			inviterUpdates["aff_quota"] = gorm.Expr("aff_quota + ?", rebate)
+			inviterUpdates["aff_history"] = gorm.Expr("aff_history + ?", rebate)
+		}
+		if len(inviterUpdates) > 0 {
+			if err := tx.Model(&User{}).Where("id = ?", inviter.Id).Updates(inviterUpdates).Error; err != nil {
+				return err
+			}
+		}
+		inviterId = inviter.Id
+		rebateCount = invitee.AffRebateCount + 1
+		return nil
+	})
+	if err != nil {
+		common.SysError("failed to settle aff reward: " + err.Error())
+		return
+	}
+	if inviterId != 0 && rebate > 0 {
+		RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户第%d次充值或兑换返利 %s", rebateCount, logger.LogQuota(rebate)))
 	}
 }
 
