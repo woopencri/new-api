@@ -114,7 +114,6 @@ export function createDurationColumn<T>(config: {
     finishTimeKey,
     unit = 'milliseconds',
     headerLabel,
-    warningThresholdSec = 60,
   } = config
 
   return {
@@ -134,8 +133,7 @@ export function createDurationColumn<T>(config: {
         return <span className='text-muted-foreground/60 text-xs'>-</span>
       }
 
-      const variant =
-        duration.durationSec > warningThresholdSec ? 'danger' : 'success'
+      const variant = 'success'
 
       const durationBgMap: Record<string, string> = {
         success:

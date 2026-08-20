@@ -112,9 +112,8 @@ export function parseLogOther(other: string): LogOtherData | null {
 export function getTimeColor(
   seconds: number
 ): 'success' | 'warning' | 'danger' {
-  if (seconds < 10) return 'success'
-  if (seconds < 30) return 'warning'
-  return 'danger'
+  void seconds
+  return 'success'
 }
 
 /**
@@ -123,9 +122,8 @@ export function getTimeColor(
 export function getFirstResponseTimeColor(
   seconds: number
 ): 'success' | 'warning' | 'danger' {
-  if (seconds < 5) return 'success'
-  if (seconds < 10) return 'warning'
-  return 'danger'
+  void seconds
+  return 'success'
 }
 
 /**
@@ -134,9 +132,8 @@ export function getFirstResponseTimeColor(
 export function getThroughputColor(
   tokensPerSecond: number
 ): 'success' | 'warning' | 'danger' {
-  if (tokensPerSecond >= 30) return 'success'
-  if (tokensPerSecond >= 15) return 'warning'
-  return 'danger'
+  void tokensPerSecond
+  return 'success'
 }
 
 /**
