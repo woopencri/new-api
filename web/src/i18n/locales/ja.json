@@ -2269,6 +2269,7 @@
     "If default auto group is enabled, newly created tokens start with auto instead of an empty group.": "デフォルト auto グループを有効にすると、新規トークンは空グループではなく auto で開始します。",
     "If the affinity channel fails and retry succeeds on another channel, update affinity to the successful channel.": "アフィニティチャネルが失敗し、別のチャネルでリトライが成功した場合、アフィニティを成功したチャネルに更新します。",
     "If this keeps happening, please report it on GitHub Issues.": "この問題が続く場合は、GitHub Issues で報告してください。",
+    "If you encounter any issues with recharging, contact customer support at <email>lin@linapi.net</email>. Please include your order number with recharge inquiries so we can look it up.": "チャージでお困りの場合は、<email>lin@linapi.net</email> までご連絡ください。確認のため、お問い合わせの際は注文番号をお知らせください。",
     "If you provide generative AI services to the public in mainland China, you will fulfill legal obligations including filing, security assessment, content safety, complaint handling, generated content labeling, log retention, and personal information protection.": "中国本土で一般向けに生成 AI サービスを提供する場合、届出、セキュリティ評価、コンテンツ安全、苦情対応、生成コンテンツのラベル表示、ログ保存、個人情報保護などの法的義務を履行します。",
     "Ignore": "無視",
     "Ignored upstream models": "無視する上流モデル",

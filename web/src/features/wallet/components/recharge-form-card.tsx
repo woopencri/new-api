@@ -16,9 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
+import {
+  Gift,
+  ExternalLink,
+  Loader2,
+  Mail,
+  Receipt,
+  WalletCards,
+} from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -468,6 +475,18 @@ export function RechargeFormCard({
                     </div>
                   </div>
                 )}
+
+              <Alert className='bg-muted/20'>
+                <Mail />
+                <AlertDescription className='text-xs leading-5 sm:text-sm'>
+                  <Trans
+                    i18nKey='If you encounter any issues with recharging, contact customer support at <email>lin@linapi.net</email>. Please include your order number with recharge inquiries so we can look it up.'
+                    components={{
+                      email: <a href='mailto:lin@linapi.net' />,
+                    }}
+                  />
+                </AlertDescription>
+              </Alert>
             </>
           )}
         </div>
