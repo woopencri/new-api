@@ -32,6 +32,7 @@ export interface Message {
   key: string
   from: MessageRole
   versions: MessageVersion[]
+  attachments?: PlaygroundAttachment[]
   createdAt?: number
   startedAt?: number
   completedAt?: number
@@ -57,13 +58,32 @@ export interface ChatCompletionMessage {
   content: string | ContentPart[]
 }
 
-export interface ContentPart {
-  type: 'text' | 'image_url'
-  text?: string
-  image_url?: {
-    url: string
-  }
+export type PlaygroundAttachment = {
+  id: string
+  type: 'image' | 'file'
+  filename: string
+  mediaType: string
+  dataUrl: string
 }
+
+export type ContentPart =
+  | {
+      type: 'text'
+      text: string
+    }
+  | {
+      type: 'image_url'
+      image_url: {
+        url: string
+      }
+    }
+  | {
+      type: 'file'
+      file: {
+        filename: string
+        file_data: string
+      }
+    }
 
 export interface ChatCompletionRequest {
   model: string

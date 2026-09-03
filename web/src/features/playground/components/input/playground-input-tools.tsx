@@ -17,13 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { GlobeIcon, PaperclipIcon, Trash2Icon } from 'lucide-react'
-import { useState } from 'react'
+import { type ChangeEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
   PromptInputButton,
   PromptInputTools,
+  usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
@@ -73,12 +74,33 @@ export function PlaygroundInputTools({
 }: PlaygroundInputToolsProps) {
   const { t } = useTranslation()
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
+  const attachments = usePromptInputAttachments()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileAction = (action: string) => {
+    if (action === 'upload-file') {
+      fileInputRef.current?.click()
+      return
+    }
+
+    if (action === 'upload-photo') {
+      photoInputRef.current?.click()
+      return
+    }
+
     const notice = getAttachmentActionNotice(action)
     toast.info(t(notice.title), {
       description: notice.description,
     })
+  }
+
+  const handleAttachmentChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.currentTarget.files
+    if (files?.length) {
+      attachments.add(files)
+    }
+    event.currentTarget.value = ''
   }
 
   const handleSearchAction = () => {
@@ -94,6 +116,21 @@ export function PlaygroundInputTools({
 
   return (
     <>
+      <input
+        className='hidden'
+        multiple
+        onChange={handleAttachmentChange}
+        ref={fileInputRef}
+        type='file'
+      />
+      <input
+        accept='image/*'
+        className='hidden'
+        multiple
+        onChange={handleAttachmentChange}
+        ref={photoInputRef}
+        type='file'
+      />
       <PromptInputTools className='bg-background/70 border-border/60 rounded-lg border p-1 shadow-xs'>
         <Tooltip>
           <DropdownMenu>

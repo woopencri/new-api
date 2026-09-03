@@ -16,11 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { FileUIPart } from 'ai'
+import { nanoid } from 'nanoid'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import {
   PromptInput,
+  PromptInputAttachment,
+  PromptInputAttachments,
   PromptInputFooter,
   PromptInputTextarea,
   type PromptInputMessage,
@@ -32,13 +37,14 @@ import type {
   GroupOption,
   ParameterEnabled,
   PlaygroundConfig,
+  PlaygroundAttachment,
 } from '../../types'
 import { PlaygroundInputControls } from './playground-input-controls'
 import { PlaygroundInputTools } from './playground-input-tools'
 
 interface PlaygroundInputProps {
   config: PlaygroundConfig
-  onSubmit: (text: string) => void
+  onSubmit: (text: string, attachments?: PlaygroundAttachment[]) => void
   onStop?: () => void
   disabled?: boolean
   isGenerating?: boolean
@@ -60,6 +66,19 @@ interface PlaygroundInputProps {
     value: boolean
   ) => void
   parameterEnabled: ParameterEnabled
+}
+
+const MAX_ATTACHMENT_FILES = 4
+const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
+
+function toPlaygroundAttachment(file: FileUIPart): PlaygroundAttachment {
+  return {
+    id: nanoid(),
+    type: file.mediaType.startsWith('image/') ? 'image' : 'file',
+    filename: file.filename || 'attachment',
+    mediaType: file.mediaType || 'application/octet-stream',
+    dataUrl: file.url,
+  }
 }
 
 export function PlaygroundInput({
@@ -87,8 +106,8 @@ export function PlaygroundInput({
   const handleSubmit = (message: PromptInputMessage) => {
     const submittableText = getSubmittableInputText(message, disabled)
 
-    if (!submittableText) return
-    onSubmit(submittableText)
+    if (submittableText === null) return
+    onSubmit(submittableText, (message.files ?? []).map(toPlaygroundAttachment))
     setText('')
   }
 
@@ -97,8 +116,15 @@ export function PlaygroundInput({
       <PromptInput
         className='relative'
         groupClassName='bg-background/95 dark:bg-background/80 border-border/70 shadow-[0_18px_60px_-32px_rgba(0,0,0,0.65)] ring-1 ring-foreground/5 rounded-xl overflow-hidden transition-all duration-200 focus-within:border-primary/45 focus-within:ring-primary/15 focus-within:shadow-[0_22px_70px_-34px_rgba(0,0,0,0.75)]'
+        maxFiles={MAX_ATTACHMENT_FILES}
+        maxFileSize={MAX_ATTACHMENT_SIZE_BYTES}
+        multiple
+        onError={(error) => toast.error(error.message)}
         onSubmit={handleSubmit}
       >
+        <PromptInputAttachments>
+          {(attachment) => <PromptInputAttachment data={attachment} />}
+        </PromptInputAttachments>
         <PromptInputTextarea
           autoComplete='off'
           autoCorrect='off'

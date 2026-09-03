@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { FileIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -80,6 +81,8 @@ export function PlaygroundMessageContent({
     sources,
   } = getMessageContentState(message, versionContent)
   const isError = isErrorMessage(message)
+  const attachments = message.attachments ?? []
+  const hasAttachments = attachments.length > 0
   const isMessageFinal =
     message.status !== MESSAGE_STATUS.LOADING &&
     message.status !== MESSAGE_STATUS.STREAMING
@@ -134,9 +137,31 @@ export function PlaygroundMessageContent({
         </>
       )}
 
-      {!isError && showMessageContent && (
+      {!isError && (showMessageContent || hasAttachments) && (
         <>
-          {isSourceVisible ? (
+          {hasAttachments && !isSourceVisible && (
+            <div className='mb-2 flex max-w-[78ch] flex-wrap gap-2'>
+              {attachments.map((attachment) =>
+                attachment.type === 'image' ? (
+                  <img
+                    alt={attachment.filename}
+                    className='max-h-64 max-w-full rounded-lg border object-contain'
+                    key={attachment.id}
+                    src={attachment.dataUrl}
+                  />
+                ) : (
+                  <div
+                    className='bg-muted/50 flex max-w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm'
+                    key={attachment.id}
+                  >
+                    <FileIcon className='text-muted-foreground size-4 shrink-0' />
+                    <span className='truncate'>{attachment.filename}</span>
+                  </div>
+                )
+              )}
+            </div>
+          )}
+          {isSourceVisible && (
             <CodeBlock
               code={versionContent}
               className='my-0 group-[.is-assistant]:w-full group-[.is-assistant]:max-w-[78ch]'
@@ -150,7 +175,8 @@ export function PlaygroundMessageContent({
             >
               <CodeBlockCopyButton />
             </CodeBlock>
-          ) : (
+          )}
+          {!isSourceVisible && showMessageContent && (
             <MessageContent
               variant='flat'
               className={cn(getMessageContentStyles())}
