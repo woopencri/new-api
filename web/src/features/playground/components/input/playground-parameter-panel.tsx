@@ -191,6 +191,40 @@ function PlaygroundParameterContent({
           </div>
         )
       })}
+
+      <div
+        className={cn(
+          'border-border/70 bg-background/60 grid gap-2 rounded-lg border p-3 transition-opacity',
+          disabled && 'opacity-55'
+        )}
+      >
+        <div className='flex items-start justify-between gap-3'>
+          <div className='min-w-0 space-y-1'>
+            <label
+              className='text-sm leading-5 font-medium'
+              htmlFor='playground-send-file-as-base64'
+            >
+              {t('Send files as Base64 blocks')}
+            </label>
+            <p className='text-muted-foreground text-xs leading-4'>
+              {t(
+                'Uses the OpenAI file content part format. Only enable this for models and channels that support it.'
+              )}
+            </p>
+          </div>
+
+          <Switch
+            aria-label={t('Send files as Base64 blocks')}
+            checked={config.sendFileAsBase64}
+            disabled={disabled}
+            id='playground-send-file-as-base64'
+            onCheckedChange={(checked) =>
+              onConfigChange('sendFileAsBase64', checked)
+            }
+            size='sm'
+          />
+        </div>
+      </div>
     </div>
   )
 }
@@ -198,9 +232,10 @@ function PlaygroundParameterContent({
 export function PlaygroundParameterPanel(props: PlaygroundParameterPanelProps) {
   const { t } = useTranslation()
   const isMobile = useIsMobile()
-  const activeCount = PLAYGROUND_PARAMETER_CONTROLS.filter(
-    (control) => props.parameterEnabled[control.key]
-  ).length
+  const activeCount =
+    PLAYGROUND_PARAMETER_CONTROLS.filter(
+      (control) => props.parameterEnabled[control.key]
+    ).length + (props.config.sendFileAsBase64 ? 1 : 0)
 
   const trigger = (
     <PromptInputButton

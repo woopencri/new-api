@@ -41,7 +41,8 @@ describe('playground attachment payloads', () => {
           type: 'file',
           filename: 'notes.txt',
           mediaType: 'text/plain',
-          dataUrl: 'data:text/plain;base64,aGVsbG8=',
+          contentMode: 'text',
+          text: 'hello',
         },
       ],
     }
@@ -55,10 +56,62 @@ describe('playground attachment payloads', () => {
           image_url: { url: 'data:image/png;base64,aW1hZ2U=' },
         },
         {
+          type: 'text',
+          text: 'notes.txt\nhello',
+        },
+      ],
+    })
+  })
+
+  test('does not add an empty text part to attachment-only messages', () => {
+    const message: Message = {
+      key: 'message-1',
+      from: 'user',
+      versions: [{ id: 'version-1', content: '' }],
+      attachments: [
+        {
+          id: 'file-1',
+          type: 'file',
+          filename: 'notes.txt',
+          mediaType: 'text/plain',
+          contentMode: 'text',
+          text: 'hello',
+        },
+      ],
+    }
+
+    assert.deepEqual(formatMessageForAPI(message), {
+      role: 'user',
+      content: [{ type: 'text', text: 'notes.txt\nhello' }],
+    })
+  })
+
+  test('formats Base64 files as OpenAI file content parts', () => {
+    const message: Message = {
+      key: 'message-1',
+      from: 'user',
+      versions: [{ id: 'version-1', content: 'Summarize this file' }],
+      attachments: [
+        {
+          id: 'file-1',
+          type: 'file',
+          filename: 'report.pdf',
+          mediaType: 'application/pdf',
+          contentMode: 'base64',
+          dataUrl: 'data:application/pdf;base64,JVBERi0=',
+        },
+      ],
+    }
+
+    assert.deepEqual(formatMessageForAPI(message), {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Summarize this file' },
+        {
           type: 'file',
           file: {
-            filename: 'notes.txt',
-            file_data: 'data:text/plain;base64,aGVsbG8=',
+            filename: 'report.pdf',
+            file_data: 'data:application/pdf;base64,JVBERi0=',
           },
         },
       ],

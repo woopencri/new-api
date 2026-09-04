@@ -58,13 +58,30 @@ export interface ChatCompletionMessage {
   content: string | ContentPart[]
 }
 
-export type PlaygroundAttachment = {
-  id: string
-  type: 'image' | 'file'
-  filename: string
-  mediaType: string
-  dataUrl: string
-}
+export type PlaygroundAttachment =
+  | {
+      id: string
+      type: 'image'
+      filename: string
+      mediaType: string
+      dataUrl: string
+    }
+  | {
+      id: string
+      type: 'file'
+      filename: string
+      mediaType: string
+      contentMode: 'text'
+      text: string
+    }
+  | {
+      id: string
+      type: 'file'
+      filename: string
+      mediaType: string
+      contentMode: 'base64'
+      dataUrl: string
+    }
 
 export type ContentPart =
   | {
@@ -146,6 +163,7 @@ export interface PlaygroundConfig {
   presence_penalty: number
   seed: number | null
   stream: boolean
+  sendFileAsBase64: boolean
 }
 
 export interface ParameterEnabled {

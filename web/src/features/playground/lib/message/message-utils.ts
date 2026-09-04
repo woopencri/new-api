@@ -120,12 +120,14 @@ export function buildMessageContent(
     return text
   }
 
-  const parts: ContentPart[] = [
-    {
+  const parts: ContentPart[] = []
+
+  if (text.trim()) {
+    parts.push({
       type: 'text',
-      text: text || '',
-    },
-  ]
+      text,
+    })
+  }
 
   for (const attachment of attachments) {
     if (attachment.type === 'image') {
@@ -136,12 +138,20 @@ export function buildMessageContent(
       continue
     }
 
+    if (attachment.contentMode === 'base64') {
+      parts.push({
+        type: 'file',
+        file: {
+          filename: attachment.filename,
+          file_data: attachment.dataUrl,
+        },
+      })
+      continue
+    }
+
     parts.push({
-      type: 'file',
-      file: {
-        filename: attachment.filename,
-        file_data: attachment.dataUrl,
-      },
+      type: 'text',
+      text: `${attachment.filename}\n${attachment.text}`,
     })
   }
 

@@ -44,6 +44,7 @@ import {
   getAttachmentActionNotice,
   getSearchActionNotice,
 } from '../../lib'
+import { PLAYGROUND_TEXT_FILE_ACCEPT } from '../../lib/input/file-text-extractor'
 import type { ParameterEnabled, PlaygroundConfig } from '../../types'
 import { PlaygroundParameterPanel } from './playground-parameter-panel'
 
@@ -117,6 +118,9 @@ export function PlaygroundInputTools({
   return (
     <>
       <input
+        accept={
+          config.sendFileAsBase64 ? undefined : PLAYGROUND_TEXT_FILE_ACCEPT
+        }
         className='hidden'
         multiple
         onChange={handleAttachmentChange}
