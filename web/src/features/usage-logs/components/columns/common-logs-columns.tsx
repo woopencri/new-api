@@ -163,10 +163,18 @@ function buildTypeDetailSegments(
     const text = prices.join(' / ')
     return showUnit ? `${text}/M` : text
   }
-  const isTieredExpr = other.billing_mode === 'tiered_expr'
+  const isTieredExpr = ['tiered_expr', 'per_request_expr'].includes(
+    other.billing_mode || ''
+  )
+  const isPerRequestExpr = other.billing_mode === 'per_request_expr'
   const tieredSummary = getTieredBillingSummary(other)
   if (isTieredExpr) {
     if (tieredSummary) {
+      if (isPerRequestExpr && tieredSummary.tier.label) {
+        segments.push({
+          text: `${t('Dynamic Pricing')} · ${tieredSummary.tier.label}`,
+        })
+      }
       const baseEntries = tieredSummary.priceEntries
         .filter((entry) => ['inputPrice', 'outputPrice'].includes(entry.field))
         .map((entry) => formatPriceCompact(entry.price))

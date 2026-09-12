@@ -41,6 +41,11 @@ export type ModelPricingFormValues = z.infer<
 
 export type PricingMode = 'per-token' | 'per-request' | 'tiered_expr'
 
+export type BillingDisplayItem = {
+  label: string
+  price: number
+}
+
 export type LaneKey =
   | 'completion'
   | 'cache'
@@ -59,9 +64,10 @@ export type ModelRatioData = {
   imageRatio?: string
   audioRatio?: string
   audioCompletionRatio?: string
-  billingMode?: PricingMode
+  billingMode?: PricingMode | 'per_request_expr'
   billingExpr?: string
   requestRuleExpr?: string
+  billingDisplay?: BillingDisplayItem[]
 }
 
 export type PreviewRow = {

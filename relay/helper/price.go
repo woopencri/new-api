@@ -74,8 +74,8 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 
 	groupRatioInfo := HandleGroupRatio(c, info)
 
-	// Check if this model uses tiered_expr billing
-	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
+	// Check if this model uses expression billing.
+	if billing_setting.IsExpressionBillingMode(billing_setting.GetBillingMode(info.OriginModelName)) {
 		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
 	}
 
@@ -264,7 +264,7 @@ func HasModelBillingConfig(modelName string) bool {
 	if _, ok, _ := ratio_setting.GetModelRatio(modelName); ok {
 		return true
 	}
-	if billing_setting.GetBillingMode(modelName) != billing_setting.BillingModeTieredExpr {
+	if !billing_setting.IsExpressionBillingMode(billing_setting.GetBillingMode(modelName)) {
 		return false
 	}
 	expr, ok := billing_setting.GetBillingExpr(modelName)
@@ -272,9 +272,10 @@ func HasModelBillingConfig(modelName string) bool {
 }
 
 func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo types.GroupRatioInfo) (types.PriceData, error) {
+	billingMode := billing_setting.GetBillingMode(info.OriginModelName)
 	exprStr, ok := billing_setting.GetBillingExpr(info.OriginModelName)
 	if !ok {
-		return types.PriceData{}, fmt.Errorf("model %s is configured as tiered_expr but has no billing expression", info.OriginModelName)
+		return types.PriceData{}, fmt.Errorf("model %s is configured for expression billing but has no billing expression", info.OriginModelName)
 	}
 
 	estimatedCompletionTokens := meta.MaxTokens
@@ -296,8 +297,10 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 		return types.PriceData{}, fmt.Errorf("model %s tiered expr run failed: %w", info.OriginModelName, err)
 	}
 
-	// Expression coefficients are $/1M tokens prices; convert to quota the same way per-call billing does.
-	quotaBeforeGroup := rawCost / 1_000_000 * common.QuotaPerUnit
+	quotaBeforeGroup := rawCost * common.QuotaPerUnit
+	if billingMode == billing_setting.BillingModeTieredExpr {
+		quotaBeforeGroup /= 1_000_000
+	}
 	preConsumedQuota, err := billingexpr.QuotaRoundStrict(quotaBeforeGroup * groupRatioInfo.GroupRatio)
 	if err != nil {
 		return types.PriceData{}, err
@@ -313,7 +316,7 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 
 	exprHash := billingexpr.ExprHashString(exprStr)
 	snapshot := &billingexpr.BillingSnapshot{
-		BillingMode:               billing_setting.BillingModeTieredExpr,
+		BillingMode:               billingMode,
 		ModelName:                 info.OriginModelName,
 		ExprString:                exprStr,
 		ExprHash:                  exprHash,

@@ -5250,5 +5250,12 @@
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
     "Zoom": "縮放"
-  }
+  },
+  "Charge expression per request": "按次收費表達式",
+  "Treat expression results as USD per request instead of USD per 1M tokens.": "將表達式結果按美元/請求計費，而不是按美元/百萬 Token 計費。",
+  "Marketplace price display": "模型廣場價格顯示",
+  "Display prices are for the model marketplace only. Billing follows the expression.": "顯示價格僅用於模型廣場，實際計費以表達式為準。",
+  "Add display price": "新增顯示價格",
+  "Display label": "顯示標籤",
+  "Price per request (USD)": "每次請求價格（美元）"
 }

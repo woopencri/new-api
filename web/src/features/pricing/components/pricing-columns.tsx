@@ -32,11 +32,13 @@ import { DEFAULT_TOKEN_UNIT } from '../constants'
 import {
   getDynamicDisplayGroupRatio,
   getDynamicPricingSummary,
+  isPerRequestExpressionModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import {
   formatMinPrice,
+  formatExpressionRequestPrice,
   formatPrice,
   formatRequestPrice,
   stripTrailingZeros,
@@ -178,6 +180,48 @@ export function usePricingColumns(
         }
 
         const isTokenBased = isTokenBasedModel(model)
+
+        if (
+          model.billing_mode === 'per_request_expr' &&
+          model.billing_display?.length
+        ) {
+          return (
+            <div className='flex max-w-full min-w-0 flex-col gap-1'>
+              {model.billing_display.map((item, index) => (
+                <div
+                  key={`${item.label}-${item.price}-${index}`}
+                  className='text-xs'
+                >
+                  <span className='text-muted-foreground'>{item.label}: </span>
+                  <span className='font-mono tabular-nums'>
+                    {stripTrailingZeros(
+                      formatExpressionRequestPrice(
+                        model,
+                        item.price,
+                        showRechargePrice,
+                        priceRate,
+                        usdExchangeRate,
+                        selectedGroup
+                      )
+                    )}
+                  </span>
+                  <span className='text-muted-foreground/50'>
+                    {' '}
+                    / {t('request')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )
+        }
+
+        if (isPerRequestExpressionModel(model)) {
+          return (
+            <span className='text-muted-foreground text-xs'>
+              {t('Dynamic Pricing')}
+            </span>
+          )
+        }
 
         if (isTokenBased) {
           const inputPrice = stripTrailingZeros(

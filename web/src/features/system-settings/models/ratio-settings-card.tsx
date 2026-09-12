@@ -118,6 +118,7 @@ const createModelSchema = (t: Translate) =>
     DisplayMinPriceEnabled: z.boolean(),
     BillingMode: createJsonStringField(t),
     BillingExpr: createJsonStringField(t),
+    BillingDisplay: createJsonStringField(t),
   })
 
 const createGroupSchema = (t: Translate) =>
@@ -198,6 +199,7 @@ export function RatioSettingsCard({
     DisplayMinPriceEnabled: modelDefaults.DisplayMinPriceEnabled,
     BillingMode: normalizeJsonString(modelDefaults.BillingMode),
     BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+    BillingDisplay: normalizeJsonString(modelDefaults.BillingDisplay),
   })
   const [savedModelValues, setSavedModelValues] = useState(
     modelNormalizedDefaults.current
@@ -238,6 +240,7 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      BillingDisplay: formatJsonForTextarea(modelDefaults.BillingDisplay),
     },
   })
 
@@ -277,6 +280,7 @@ export function RatioSettingsCard({
       DisplayMinPriceEnabled: modelDefaults.DisplayMinPriceEnabled,
       BillingMode: normalizeJsonString(modelDefaults.BillingMode),
       BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+      BillingDisplay: normalizeJsonString(modelDefaults.BillingDisplay),
     }
     setSavedModelValues(modelNormalizedDefaults.current)
 
@@ -295,6 +299,7 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      BillingDisplay: formatJsonForTextarea(modelDefaults.BillingDisplay),
     })
   }, [modelDefaults, modelForm])
 
@@ -346,11 +351,13 @@ export function RatioSettingsCard({
         DisplayMinPriceEnabled: values.DisplayMinPriceEnabled,
         BillingMode: normalizeJsonString(values.BillingMode),
         BillingExpr: normalizeJsonString(values.BillingExpr),
+        BillingDisplay: normalizeJsonString(values.BillingDisplay),
       }
 
       const apiKeyMap: Record<string, string> = {
         BillingMode: 'billing_setting.billing_mode',
         BillingExpr: 'billing_setting.billing_expr',
+        BillingDisplay: 'billing_setting.billing_display',
       }
 
       const updates = (

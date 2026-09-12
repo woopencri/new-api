@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -94,7 +95,12 @@ func initModelListColumnNames(t *testing.T) {
 	}
 }
 
-func withTieredBillingConfig(t *testing.T, modes map[string]string, exprs map[string]string) {
+func withExpressionBillingConfig(
+	t *testing.T,
+	modes map[string]string,
+	exprs map[string]string,
+	displays map[string][]billing_setting.BillingDisplayItem,
+) {
 	t.Helper()
 
 	saved := map[string]string{}
@@ -113,10 +119,13 @@ func withTieredBillingConfig(t *testing.T, modes map[string]string, exprs map[st
 	require.NoError(t, err)
 	exprBytes, err := common.Marshal(exprs)
 	require.NoError(t, err)
+	displayBytes, err := common.Marshal(displays)
+	require.NoError(t, err)
 
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"billing_setting.billing_mode": string(modeBytes),
-		"billing_setting.billing_expr": string(exprBytes),
+		"billing_setting.billing_mode":    string(modeBytes),
+		"billing_setting.billing_expr":    string(exprBytes),
+		"billing_setting.billing_display": string(displayBytes),
 	}))
 	model.InvalidatePricingCache()
 }
@@ -267,14 +276,14 @@ func TestGetUserModelsExpandsAutoGroupsInConfiguredOrder(t *testing.T) {
 
 func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	withSelfUseModeDisabled(t)
-	withTieredBillingConfig(t, map[string]string{
+	withExpressionBillingConfig(t, map[string]string{
 		"zz-tiered-visible-model":      "tiered_expr",
 		"zz-tiered-empty-expr-model":   "tiered_expr",
 		"zz-tiered-missing-expr-model": "tiered_expr",
 	}, map[string]string{
 		"zz-tiered-visible-model":    `tier("base", p * 1 + c * 2)`,
 		"zz-tiered-empty-expr-model": "   ",
-	})
+	}, nil)
 
 	db := setupModelListControllerTestDB(t)
 	require.NoError(t, db.Create(&model.User{
@@ -319,6 +328,36 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	require.True(t, ok)
 	require.Empty(t, missingExprPricing.BillingMode)
 	require.Empty(t, missingExprPricing.BillingExpr)
+}
+
+func TestPricingIncludesPerRequestExpressionDisplay(t *testing.T) {
+	withExpressionBillingConfig(t, map[string]string{
+		"zz-per-request-image-model": billing_setting.BillingModePerRequestExpr,
+	}, map[string]string{
+		"zz-per-request-image-model": `param("size") == "1536x1024" ? tier("2K", 0.2) : tier("1K", 0.15)`,
+	}, map[string][]billing_setting.BillingDisplayItem{
+		"zz-per-request-image-model": {
+			{Label: " 1K ", Price: 0.15},
+			{Label: "2K", Price: 0.2},
+			{Label: "", Price: 9},
+			{Label: "invalid", Price: -1},
+		},
+	})
+
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Ability{
+		Group: "default", Model: "zz-per-request-image-model", ChannelId: 1, Enabled: true,
+	}).Error)
+
+	pricingByName := pricingByModelName(model.GetPricing())
+	pricing, ok := pricingByName["zz-per-request-image-model"]
+	require.True(t, ok)
+	assert.Equal(t, billing_setting.BillingModePerRequestExpr, pricing.BillingMode)
+	assert.Equal(t, 1, pricing.QuotaType)
+	assert.Equal(t, []billing_setting.BillingDisplayItem{
+		{Label: "1K", Price: 0.15},
+		{Label: "2K", Price: 0.2},
+	}, pricing.BillingDisplay)
 }
 
 func TestListModelsUsesAdvancedCustomEndpointTypesFromPricingCache(t *testing.T) {
@@ -394,14 +433,14 @@ func TestListModelsUsesAdvancedCustomEndpointTypesFromPricingCache(t *testing.T)
 
 func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	withSelfUseModeDisabled(t)
-	withTieredBillingConfig(t, map[string]string{
+	withExpressionBillingConfig(t, map[string]string{
 		"zz-token-tiered-visible-model":      "tiered_expr",
 		"zz-token-tiered-empty-expr-model":   "tiered_expr",
 		"zz-token-tiered-missing-expr-model": "tiered_expr",
 	}, map[string]string{
 		"zz-token-tiered-visible-model":    `tier("base", p * 1 + c * 2)`,
 		"zz-token-tiered-empty-expr-model": "",
-	})
+	}, nil)
 	setupModelListControllerTestDB(t)
 
 	recorder := httptest.NewRecorder()

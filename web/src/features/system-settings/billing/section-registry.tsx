@@ -40,6 +40,7 @@ const getModelDefaults = (settings: BillingSettings) => ({
   DisplayMinPriceEnabled: settings.DisplayMinPriceEnabled,
   BillingMode: settings['billing_setting.billing_mode'],
   BillingExpr: settings['billing_setting.billing_expr'],
+  BillingDisplay: settings['billing_setting.billing_display'],
 })
 
 const getGroupDefaults = (settings: BillingSettings) => ({

@@ -5250,5 +5250,12 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  }
+  },
+  "Charge expression per request": "Expression facturée par requête",
+  "Treat expression results as USD per request instead of USD per 1M tokens.": "Interpréter le résultat en USD par requête plutôt qu’en USD par million de jetons.",
+  "Marketplace price display": "Affichage du prix sur la place de marché",
+  "Display prices are for the model marketplace only. Billing follows the expression.": "Ces prix servent uniquement à l’affichage. La facturation suit l’expression.",
+  "Add display price": "Ajouter un prix affiché",
+  "Display label": "Libellé affiché",
+  "Price per request (USD)": "Prix par requête (USD)"
 }

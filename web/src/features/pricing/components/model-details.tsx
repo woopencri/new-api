@@ -65,10 +65,12 @@ import {
   getDynamicPricingSummary,
   getDynamicPricingTiers,
   isDynamicPricingModel,
+  isPerRequestExpressionModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import {
+  formatExpressionRequestPrice,
   formatFixedPrice,
   formatGroupMinPrice,
   formatGroupPrice,
@@ -589,6 +591,9 @@ function PriceSection(props: {
     usdExchangeRate: props.usdExchangeRate,
     groupRatioMultiplier: 1,
   })
+  const requestExpressionDisplay = isPerRequestExpressionModel(props.model)
+    ? props.model.billing_display || []
+    : []
 
   const primaryPriceTypes: { label: string; type: PriceType }[] = [
     { label: t('Input'), type: 'input' },
@@ -627,6 +632,60 @@ function PriceSection(props: {
         props.model.audio_completion_ratio != null,
     },
   ]
+
+  if (requestExpressionDisplay.length > 0) {
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <div className='grid grid-cols-2 gap-2'>
+          {requestExpressionDisplay.map((item, index) => (
+            <div
+              key={`${item.label}-${item.price}-${index}`}
+              className='bg-muted/20 rounded-lg border p-3'
+            >
+              <div className='text-muted-foreground text-xs'>{item.label}</div>
+              <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
+                {formatExpressionRequestPrice(
+                  props.model,
+                  item.price,
+                  props.showRechargePrice,
+                  props.priceRate,
+                  props.usdExchangeRate
+                )}
+                <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                  / {t('request')}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  if (isPerRequestExpressionModel(props.model)) {
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <div className='rounded-lg border border-amber-200/70 bg-amber-50/70 p-3 dark:border-amber-500/20 dark:bg-amber-500/10'>
+          <div className='text-sm font-medium text-amber-800 dark:text-amber-200'>
+            {t('Dynamic Pricing')}
+          </div>
+          <p className='text-muted-foreground mt-1 text-xs'>
+            {t('Unable to parse structured pricing')}
+          </p>
+          <div className='mt-3'>
+            <div className='text-muted-foreground mb-1 text-[10px] font-medium tracking-wider uppercase'>
+              {t('Raw expression')}
+            </div>
+            <code className='text-muted-foreground bg-background/80 block max-h-28 overflow-auto rounded-md border px-2 py-1.5 font-mono text-xs break-all'>
+              {props.model.billing_expr}
+            </code>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {
@@ -936,6 +995,69 @@ function GroupPricingSection(props: {
   const thClass =
     'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase'
 
+  if (
+    isPerRequestExpressionModel(props.model) &&
+    !props.model.billing_display?.length
+  ) {
+    return (
+      <section>
+        <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+        <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+        <p className='text-muted-foreground text-sm'>{t('Dynamic Pricing')}</p>
+      </section>
+    )
+  }
+
+  if (
+    isPerRequestExpressionModel(props.model) &&
+    props.model.billing_display?.length
+  ) {
+    return (
+      <section>
+        <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+        <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+        <StaticDataTable
+          className='-mx-4 rounded-none border-0 sm:mx-0'
+          tableClassName='text-sm'
+          headerRowClassName='hover:bg-transparent'
+          data={availableGroups}
+          getRowKey={(group) => group}
+          columns={[
+            {
+              id: 'group',
+              header: t('Group'),
+              className: thClass,
+              cellClassName: 'py-2.5',
+              cell: (group) => <GroupBadge group={group} size='sm' />,
+            },
+            {
+              id: 'ratio',
+              header: t('Ratio'),
+              className: thClass,
+              cellClassName: 'text-muted-foreground py-2.5 font-mono',
+              cell: (group) => `${props.groupRatio[group] || 1}x`,
+            },
+            ...props.model.billing_display.map((item, index) => ({
+              id: `${item.label}-${item.price}-${index}`,
+              header: item.label,
+              className: `${thClass} text-right`,
+              cellClassName: 'py-2.5 text-right font-mono',
+              cell: (group: string) =>
+                `${formatExpressionRequestPrice(
+                  props.model,
+                  item.price,
+                  showRechargePrice,
+                  props.priceRate,
+                  props.usdExchangeRate,
+                  group
+                )} / ${t('request')}`,
+            })),
+          ]}
+        />
+      </section>
+    )
+  }
+
   if (isDynamicPricingModel(props.model)) {
     const dynamicTiers = getDynamicPricingTiers(props.model)
 
@@ -1167,9 +1289,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
   const { t } = useTranslation()
   const showRechargePrice = props.showRechargePrice ?? false
 
-  const isDynamic =
-    props.model.billing_mode === 'tiered_expr' &&
-    Boolean(props.model.billing_expr)
+  const isDynamic = isDynamicPricingModel(props.model)
 
   return (
     <div className='@container/details space-y-4'>

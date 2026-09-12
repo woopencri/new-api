@@ -142,9 +142,27 @@ The editor outputs a billing expression string and an optional request rule expr
 
 **File**: `setting/billing_setting/tiered_billing.go`
 
-Two option maps stored in the `options` DB table:
-- `ModelBillingMode`: `{ "model-name": "tiered_expr" }` — activates tiered billing for a model
-- `ModelBillingExpr`: `{ "model-name": "tier(\"base\", p * 2.5 + c * 15)" }` — the expression
+Three option maps are stored in the `options` DB table:
+- `billing_setting.billing_mode`: selects `tiered_expr` (expression output is $/1M tokens) or `per_request_expr` (expression output is $/request)
+- `billing_setting.billing_expr`: stores the executable expression
+- `billing_setting.billing_display`: optional model-marketplace labels and USD/request prices for `per_request_expr`; this is display metadata only and never participates in billing
+
+Example:
+
+```json
+{
+  "billing_setting.billing_mode": { "image-model": "per_request_expr" },
+  "billing_setting.billing_expr": {
+    "image-model": "param(\"size\") == \"1536x1024\" ? tier(\"2K\", 0.2) : tier(\"1K\", 0.15)"
+  },
+  "billing_setting.billing_display": {
+    "image-model": [
+      { "label": "1K", "price": 0.15 },
+      { "label": "2K", "price": 0.2 }
+    ]
+  }
+}
+```
 
 On save, the expression is validated:
 1. Compiled via `billingexpr.CompileFromCache()` — syntax check
@@ -154,11 +172,13 @@ On save, the expression is validated:
 
 **File**: `relay/helper/price.go` → `modelPriceHelperTiered()`
 
-When a request arrives and the model uses `tiered_expr` billing:
+When a request arrives and the model uses an expression billing mode:
 1. Loads expression from `billing_setting.GetBillingExpr()`
 2. Builds `RequestInput` (headers + body) for `param()` / `header()` functions
 3. Runs expression with estimated tokens: `RunExprWithRequest(expr, {P, C}, requestInput)`
-4. Converts output to quota: `rawCost / 1,000,000 * QuotaPerUnit`
+4. Converts output to quota according to the frozen billing mode:
+   - `tiered_expr`: `rawCost / 1,000,000 * QuotaPerUnit`
+   - `per_request_expr`: `rawCost * QuotaPerUnit`
 5. Creates `BillingSnapshot` (frozen state for settlement) and stores on `RelayInfo`
 
 ### 4. Settlement (Actual Billing)
@@ -184,7 +204,7 @@ After the upstream response returns with actual token usage:
 
 Backend: `InjectTieredBillingInfo()` adds `billing_mode`, `expr_b64` (base64 expression), and `matched_tier` to the log's `other` JSON.
 
-Frontend: Detects `billing_mode === "tiered_expr"`, decodes `expr_b64`, parses tiers via shared `parseTiersFromExpr()`, and renders pricing breakdown.
+Frontend: Detects either expression billing mode, decodes `expr_b64`, parses tiers via shared `parseTiersFromExpr()`, and renders the matched tier. Token-price entries are shown with `/M` only for `tiered_expr`.
 
 ---
 
@@ -214,13 +234,21 @@ This ensures that heavy cache usage doesn't cause the tier condition to incorrec
 
 ### Quota Conversion
 
-Expression coefficients are $/1M tokens. Conversion to internal quota:
+The conversion depends on the billing mode frozen into `BillingSnapshot`.
+
+For `tiered_expr`, expression coefficients are $/1M tokens:
 
 ```
 quota = exprOutput / 1,000,000 * QuotaPerUnit * groupRatio
 ```
 
-This matches the per-call billing pattern: `quota = modelPrice * QuotaPerUnit * groupRatio`.
+For `per_request_expr`, the expression output is the request's USD price directly:
+
+```
+quota = exprOutput * QuotaPerUnit * groupRatio
+```
+
+`billing_display` does not affect either formula. It exists only so the model marketplace can describe parameter-dependent request prices that cannot be inferred reliably from an arbitrary expression.
 
 ### Expression Versioning
 

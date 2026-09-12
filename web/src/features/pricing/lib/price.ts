@@ -334,3 +334,25 @@ export function formatRequestPrice(
     abbreviate: false,
   })
 }
+
+export function formatExpressionRequestPrice(
+  model: PricingModel,
+  price: number,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1,
+  selectedGroup?: string
+): string {
+  let priceInUSD = price * getDisplayGroupRatio(model, selectedGroup)
+  priceInUSD = applyRechargeRate(
+    priceInUSD,
+    showWithRecharge,
+    priceRate,
+    usdExchangeRate
+  )
+  return formatCurrencyFromUSD(priceInUSD, {
+    digitsLarge: 4,
+    digitsSmall: 4,
+    abbreviate: false,
+  })
+}

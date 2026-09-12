@@ -5250,5 +5250,12 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  }
+  },
+  "Charge expression per request": "Расчёт выражения за запрос",
+  "Treat expression results as USD per request instead of USD per 1M tokens.": "Считать результат выражения ценой в USD за запрос, а не за 1 млн токенов.",
+  "Marketplace price display": "Отображение цены в каталоге",
+  "Display prices are for the model marketplace only. Billing follows the expression.": "Эти цены используются только в каталоге. Списание выполняется по выражению.",
+  "Add display price": "Добавить отображаемую цену",
+  "Display label": "Метка",
+  "Price per request (USD)": "Цена за запрос (USD)"
 }

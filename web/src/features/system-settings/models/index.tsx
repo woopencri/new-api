@@ -56,6 +56,7 @@ const defaultModelSettings: ModelSettings = {
   DisplayMinPriceEnabled: false,
   'billing_setting.billing_mode': '{}',
   'billing_setting.billing_expr': '{}',
+  'billing_setting.billing_display': '{}',
   'tool_price_setting.prices': '{}',
   TopupGroupRatio: '',
   GroupRatio: '',

@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/require"
 )
 
 // Claude Sonnet-style tiered expression: standard vs long-context
@@ -83,6 +84,26 @@ func TestTryTieredSettleUsesFrozenRequestInput(t *testing.T) {
 	if result == nil || result.MatchedTier != "fast" {
 		t.Fatalf("matched tier = %v, want fast", result)
 	}
+}
+
+func TestTryTieredSettlePerRequestExpression(t *testing.T) {
+	exprStr := `tier("2K", 0.2)`
+	relayInfo := &relaycommon.RelayInfo{
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode:   "per_request_expr",
+			ExprString:    exprStr,
+			ExprHash:      billingexpr.ExprHashString(exprStr),
+			GroupRatio:    1.5,
+			QuotaPerUnit:  testQuotaPerUnit,
+			EstimatedTier: "2K",
+		},
+	}
+
+	ok, quota, result := TryTieredSettle(relayInfo, billingexpr.TokenParams{})
+	require.True(t, ok)
+	require.Equal(t, 150000, quota)
+	require.NotNil(t, result)
+	require.Equal(t, "2K", result.MatchedTier)
 }
 
 func TestTryTieredSettleFallsBackToFrozenPreConsumeOnExprError(t *testing.T) {

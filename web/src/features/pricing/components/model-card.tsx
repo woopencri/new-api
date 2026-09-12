@@ -28,10 +28,16 @@ import { DEFAULT_TOKEN_UNIT } from '../constants'
 import {
   getDynamicDisplayGroupRatio,
   getDynamicPricingSummary,
+  isDynamicPricingModel,
+  isPerRequestExpressionModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
-import { formatPrice, formatRequestPrice } from '../lib/price'
+import {
+  formatExpressionRequestPrice,
+  formatPrice,
+  formatRequestPrice,
+} from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
@@ -62,9 +68,12 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const modelIconKey = props.model.icon || props.model.vendor_icon
   const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 28) : null
   const initial = props.model.model_name?.charAt(0).toUpperCase() || '?'
-  const isDynamicPricing =
-    props.model.billing_mode === 'tiered_expr' &&
-    Boolean(props.model.billing_expr)
+  const isDynamicPricing = isDynamicPricingModel(props.model)
+  const isPerRequestExpression = isPerRequestExpressionModel(props.model)
+  const requestExpressionDisplay =
+    props.model.billing_mode === 'per_request_expr'
+      ? props.model.billing_display || []
+      : []
   const hasCachedPrice = isTokenBased && props.model.cache_ratio != null
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
@@ -92,7 +101,35 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   }
 
   let priceSummary: ReactNode
-  if (dynamicSummary) {
+  if (requestExpressionDisplay.length > 0) {
+    priceSummary = (
+      <>
+        {requestExpressionDisplay.map((item, index) => (
+          <span
+            key={`${item.label}-${item.price}-${index}`}
+            className='text-muted-foreground whitespace-nowrap'
+          >
+            {item.label}:{' '}
+            <span className='text-foreground font-mono font-semibold'>
+              {formatExpressionRequestPrice(
+                props.model,
+                item.price,
+                showRechargePrice,
+                priceRate,
+                usdExchangeRate,
+                props.selectedGroup
+              )}
+            </span>{' '}
+            / {t('request')}
+          </span>
+        ))}
+      </>
+    )
+  } else if (isPerRequestExpression) {
+    priceSummary = (
+      <span className='text-muted-foreground'>{t('Dynamic Pricing')}</span>
+    )
+  } else if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {
       priceSummary = (
         <span className='min-w-0'>

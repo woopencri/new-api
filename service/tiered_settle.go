@@ -90,13 +90,13 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 	}
 }
 
-// TryTieredSettle checks if the request uses tiered_expr billing and, if so,
+// TryTieredSettle checks if the request uses expression billing and, if so,
 // computes the actual quota using the frozen BillingSnapshot. Returns:
 //   - ok=true, quota, result  when tiered billing applies
 //   - ok=false, 0, nil        when it doesn't (caller should fall through to existing logic)
 func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenParams) (ok bool, quota int, result *billingexpr.TieredResult) {
 	snap := relayInfo.TieredBillingSnapshot
-	if snap == nil || snap.BillingMode != "tiered_expr" {
+	if snap == nil || (snap.BillingMode != "tiered_expr" && snap.BillingMode != "per_request_expr") {
 		return false, 0, nil
 	}
 

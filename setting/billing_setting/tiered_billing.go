@@ -2,6 +2,8 @@ package billing_setting
 
 import (
 	"fmt"
+	"math"
+	"strings"
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -9,22 +11,32 @@ import (
 )
 
 const (
-	BillingModeRatio      = "ratio"
-	BillingModeTieredExpr = "tiered_expr"
-	BillingModeField      = "billing_mode"
-	BillingExprField      = "billing_expr"
+	BillingModeRatio          = "ratio"
+	BillingModeTieredExpr     = "tiered_expr"
+	BillingModePerRequestExpr = "per_request_expr"
+	BillingModeField          = "billing_mode"
+	BillingExprField          = "billing_expr"
+	BillingDisplayField       = "billing_display"
 )
 
+type BillingDisplayItem struct {
+	Label string  `json:"label"`
+	Price float64 `json:"price"`
+}
+
 // BillingSetting is managed by config.GlobalConfig.Register.
-// DB keys: billing_setting.billing_mode, billing_setting.billing_expr
+// DB keys: billing_setting.billing_mode, billing_setting.billing_expr,
+// billing_setting.billing_display
 type BillingSetting struct {
-	BillingMode map[string]string `json:"billing_mode"`
-	BillingExpr map[string]string `json:"billing_expr"`
+	BillingMode    map[string]string               `json:"billing_mode"`
+	BillingExpr    map[string]string               `json:"billing_expr"`
+	BillingDisplay map[string][]BillingDisplayItem `json:"billing_display"`
 }
 
 var billingSetting = BillingSetting{
-	BillingMode: make(map[string]string),
-	BillingExpr: make(map[string]string),
+	BillingMode:    make(map[string]string),
+	BillingExpr:    make(map[string]string),
+	BillingDisplay: make(map[string][]BillingDisplayItem),
 }
 
 func init() {
@@ -45,6 +57,26 @@ func GetBillingMode(model string) string {
 func GetBillingExpr(model string) (string, bool) {
 	expr, ok := billingSetting.BillingExpr[model]
 	return expr, ok
+}
+
+func IsExpressionBillingMode(mode string) bool {
+	return mode == BillingModeTieredExpr || mode == BillingModePerRequestExpr
+}
+
+func GetBillingDisplay(model string) ([]BillingDisplayItem, bool) {
+	display, ok := billingSetting.BillingDisplay[model]
+	if !ok {
+		return nil, false
+	}
+	filtered := make([]BillingDisplayItem, 0, len(display))
+	for _, item := range display {
+		label := strings.TrimSpace(item.Label)
+		if label == "" || item.Price < 0 || math.IsNaN(item.Price) || math.IsInf(item.Price, 0) {
+			continue
+		}
+		filtered = append(filtered, BillingDisplayItem{Label: label, Price: item.Price})
+	}
+	return filtered, len(filtered) > 0
 }
 
 func GetBillingModeCopy() map[string]string {

@@ -219,6 +219,7 @@ export type ModelSettings = {
   DisplayMinPriceEnabled: boolean
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
+  'billing_setting.billing_display': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string
@@ -277,6 +278,7 @@ export type BillingSettings = {
   DisplayMinPriceEnabled: boolean
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
+  'billing_setting.billing_display': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string

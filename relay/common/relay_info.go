@@ -169,7 +169,7 @@ type RelayInfo struct {
 	QuotaClamp *common.QuotaClamp
 
 	// TieredBillingSnapshot is a frozen snapshot of tiered billing rules
-	// captured at pre-consume time. Non-nil only when billing mode is "tiered_expr".
+	// captured at pre-consume time. Non-nil only for expression billing modes.
 	TieredBillingSnapshot *billingexpr.BillingSnapshot
 	BillingRequestInput   *billingexpr.RequestInput
 

@@ -64,6 +64,44 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	require.Equal(t, common.QuotaPerUnit, info.TieredBillingSnapshot.QuotaPerUnit)
 }
 
+func TestModelPriceHelperPerRequestExpressionUsesDollarPrice(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+	})
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode":    `{"request-expr-model":"per_request_expr"}`,
+		"billing_setting.billing_expr":    `{"request-expr-model":"param(\"size\") == \"1536x1024\" ? tier(\"2K\", 0.2) : tier(\"1K\", 0.15)"}`,
+		"group_ratio_setting.group_ratio": `{"default":1}`,
+	}))
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "request-expr-model",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+		BillingRequestInput: &billingexpr.RequestInput{
+			Body: []byte(`{"size":"1536x1024"}`),
+		},
+	}
+
+	priceData, err := ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	require.Equal(t, 100000, priceData.QuotaToPreConsume)
+	require.NotNil(t, info.TieredBillingSnapshot)
+	require.Equal(t, billing_setting.BillingModePerRequestExpr, info.TieredBillingSnapshot.BillingMode)
+	require.Equal(t, "2K", info.TieredBillingSnapshot.EstimatedTier)
+}
+
 func TestModelPriceHelperTieredPreConsumeMaxTokensFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

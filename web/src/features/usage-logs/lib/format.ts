@@ -227,7 +227,12 @@ export function hasAnyCacheTokens(
 export function getTieredBillingSummary(
   other: LogOtherData | null
 ): TieredBillingSummary | null {
-  if (!other || other.billing_mode !== 'tiered_expr') return null
+  if (
+    !other ||
+    !['tiered_expr', 'per_request_expr'].includes(other.billing_mode || '')
+  ) {
+    return null
+  }
   const exprStr = decodeBillingExprB64(other.expr_b64)
   if (!exprStr) return null
   const tiers = parseTiersFromExpr(exprStr)

@@ -5250,5 +5250,12 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム"
-  }
+  },
+  "Charge expression per request": "リクエスト単位の式課金",
+  "Treat expression results as USD per request instead of USD per 1M tokens.": "式の結果を100万トークン単価ではなく、1リクエストあたりの米ドル価格として扱います。",
+  "Marketplace price display": "モデル広場の価格表示",
+  "Display prices are for the model marketplace only. Billing follows the expression.": "表示価格はモデル広場専用です。実際の課金は式に従います。",
+  "Add display price": "表示価格を追加",
+  "Display label": "表示ラベル",
+  "Price per request (USD)": "リクエスト単価（USD）"
 }

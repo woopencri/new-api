@@ -224,7 +224,9 @@ function BillingBreakdown(props: {
   const { log, other, isAdmin } = props
   const isPerCall = isPerCallBilling(other.model_price)
   const isClaude = other.claude === true
-  const isTieredExpr = other.billing_mode === 'tiered_expr'
+  const isTieredExpr = ['tiered_expr', 'per_request_expr'].includes(
+    other.billing_mode || ''
+  )
   const tieredSummary = getTieredBillingSummary(other)
 
   const rows: Array<{ label: string; value: string }> = []
@@ -247,7 +249,10 @@ function BillingBreakdown(props: {
       for (const entry of tieredSummary.priceEntries) {
         rows.push({
           label: t(entry.shortLabel),
-          value: `${fmtPrice(entry.price)}/M`,
+          value:
+            other.billing_mode === 'per_request_expr'
+              ? fmtPrice(entry.price)
+              : `${fmtPrice(entry.price)}/M`,
         })
       }
     } else {
@@ -501,7 +506,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const isTieredBilling =
     isConsume &&
     !isViolation &&
-    other?.billing_mode === 'tiered_expr' &&
+    ['tiered_expr', 'per_request_expr'].includes(other?.billing_mode || '') &&
     !!other?.expr_b64
   const hasAudioTokens = other?.ws || other?.audio
   const showTiming = isTimingLogType(props.log.type)
@@ -1066,7 +1071,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
           />
         )}
 
-        {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}
+        {/* Expression billing breakdown */}
         {isTieredBilling && other?.expr_b64 && (
           <DetailSection label={t('Dynamic Pricing')}>
             <DynamicPricingBreakdown

@@ -5250,5 +5250,12 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  }
+  },
+  "Charge expression per request": "Charge expression per request",
+  "Treat expression results as USD per request instead of USD per 1M tokens.": "Treat expression results as USD per request instead of USD per 1M tokens.",
+  "Marketplace price display": "Marketplace price display",
+  "Display prices are for the model marketplace only. Billing follows the expression.": "Display prices are for the model marketplace only. Billing follows the expression.",
+  "Add display price": "Add display price",
+  "Display label": "Display label",
+  "Price per request (USD)": "Price per request (USD)"
 }

@@ -186,7 +186,7 @@ export interface LogOtherData {
   min_price?: number
   min_price_applied?: boolean
   // Tiered (expression-based) billing fields, set by backend when
-  // billing_mode === 'tiered_expr'. expr_b64 is the base64-encoded billing
+  // billing_mode is an expression mode. expr_b64 is the base64-encoded billing
   // expression and matched_tier is the label of the tier that fired.
   billing_mode?: string
   expr_b64?: string

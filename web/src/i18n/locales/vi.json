@@ -5250,5 +5250,12 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  }
+  },
+  "Charge expression per request": "Biểu thức tính phí theo yêu cầu",
+  "Treat expression results as USD per request instead of USD per 1M tokens.": "Coi kết quả biểu thức là USD cho mỗi yêu cầu thay vì USD cho mỗi 1 triệu token.",
+  "Marketplace price display": "Hiển thị giá trên kho mô hình",
+  "Display prices are for the model marketplace only. Billing follows the expression.": "Giá này chỉ dùng để hiển thị trên kho mô hình. Việc tính phí tuân theo biểu thức.",
+  "Add display price": "Thêm giá hiển thị",
+  "Display label": "Nhãn hiển thị",
+  "Price per request (USD)": "Giá mỗi yêu cầu (USD)"
 }

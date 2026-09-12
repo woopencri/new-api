@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertTriangle, Save } from 'lucide-react'
+import { AlertTriangle, Plus, Save, Trash2 } from 'lucide-react'
 import {
   forwardRef,
   useCallback,
@@ -60,6 +60,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
@@ -75,6 +76,7 @@ import {
   ratioFieldByLane,
   toNumberOrNull,
   type LaneKey,
+  type BillingDisplayItem,
   type ModelPricingFormValues,
   type ModelRatioData,
   type PricingMode,
@@ -155,6 +157,8 @@ export const ModelPricingEditorPanel = forwardRef<
   })
   const [billingExpr, setBillingExpr] = useState('')
   const [requestRuleExpr, setRequestRuleExpr] = useState('')
+  const [expressionPerRequest, setExpressionPerRequest] = useState(false)
+  const [billingDisplay, setBillingDisplay] = useState<BillingDisplayItem[]>([])
   const [editorReloadToken, setEditorReloadToken] = useState(0)
   const isEditMode = !!editData
 
@@ -189,7 +193,8 @@ export const ModelPricingEditorPanel = forwardRef<
         audioCompletionRatio: editData.audioCompletionRatio || '',
       })
       setPricingMode(
-        editData.billingMode === 'tiered_expr'
+        editData.billingMode === 'tiered_expr' ||
+          editData.billingMode === 'per_request_expr'
           ? 'tiered_expr'
           : editData.price
             ? 'per-request'
@@ -197,6 +202,8 @@ export const ModelPricingEditorPanel = forwardRef<
       )
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
+      setExpressionPerRequest(editData.billingMode === 'per_request_expr')
+      setBillingDisplay(editData.billingDisplay || [])
     } else {
       form.reset({
         name: '',
@@ -212,6 +219,8 @@ export const ModelPricingEditorPanel = forwardRef<
       setPricingMode('per-token')
       setBillingExpr('')
       setRequestRuleExpr('')
+      setExpressionPerRequest(false)
+      setBillingDisplay([])
     }
 
     setPromptPrice(nextLaneState.promptPrice)
@@ -454,13 +463,32 @@ export const ModelPricingEditorPanel = forwardRef<
       }
 
       if (pricingMode === 'tiered_expr') {
+        data.billingMode = expressionPerRequest
+          ? 'per_request_expr'
+          : 'tiered_expr'
         data.billingExpr = billingExpr
         data.requestRuleExpr = requestRuleExpr
+        data.billingDisplay = expressionPerRequest
+          ? billingDisplay
+              .filter(
+                (item) =>
+                  item.label.trim() &&
+                  Number.isFinite(item.price) &&
+                  item.price >= 0
+              )
+              .map((item) => ({ ...item, label: item.label.trim() }))
+          : []
       }
 
       return data
     },
-    [billingExpr, pricingMode, requestRuleExpr]
+    [
+      billingDisplay,
+      billingExpr,
+      expressionPerRequest,
+      pricingMode,
+      requestRuleExpr,
+    ]
   )
 
   useImperativeHandle(
@@ -641,6 +669,27 @@ export const ModelPricingEditorPanel = forwardRef<
 
                   <TabsContent value='tiered_expr' className='pt-0'>
                     <FieldGroup className='gap-5'>
+                      <Field orientation='horizontal'>
+                        <div className='space-y-1'>
+                          <FieldLabel>
+                            {t('Charge expression per request')}
+                          </FieldLabel>
+                          <FieldDescription>
+                            {t(
+                              'Treat expression results as USD per request instead of USD per 1M tokens.'
+                            )}
+                          </FieldDescription>
+                        </div>
+                        <Switch
+                          checked={expressionPerRequest}
+                          onCheckedChange={(checked) => {
+                            setExpressionPerRequest(checked)
+                            if (checked && !billingExpr.trim()) {
+                              setBillingExpr('tier("base", 0.15)')
+                            }
+                          }}
+                        />
+                      </Field>
                       <TieredPricingEditor
                         key={editorReloadToken}
                         modelName={watchedValues.name}
@@ -649,6 +698,96 @@ export const ModelPricingEditorPanel = forwardRef<
                         onBillingExprChange={setBillingExpr}
                         onRequestRuleExprChange={setRequestRuleExpr}
                       />
+                      {expressionPerRequest && (
+                        <Field>
+                          <div className='flex items-start justify-between gap-3'>
+                            <div className='space-y-1'>
+                              <FieldLabel>
+                                {t('Marketplace price display')}
+                              </FieldLabel>
+                              <FieldDescription>
+                                {t(
+                                  'Display prices are for the model marketplace only. Billing follows the expression.'
+                                )}
+                              </FieldDescription>
+                            </div>
+                            <Button
+                              type='button'
+                              variant='outline'
+                              size='sm'
+                              onClick={() =>
+                                setBillingDisplay((items) => [
+                                  ...items,
+                                  { label: '', price: 0 },
+                                ])
+                              }
+                            >
+                              <Plus className='h-4 w-4' />
+                              {t('Add display price')}
+                            </Button>
+                          </div>
+                          <div className='space-y-2'>
+                            {billingDisplay.map((item, index) => (
+                              <div
+                                key={index}
+                                className='grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2'
+                              >
+                                <Input
+                                  value={item.label}
+                                  placeholder={t('Display label')}
+                                  onChange={(event) =>
+                                    setBillingDisplay((items) =>
+                                      items.map((current, currentIndex) =>
+                                        currentIndex === index
+                                          ? {
+                                              ...current,
+                                              label: event.target.value,
+                                            }
+                                          : current
+                                      )
+                                    )
+                                  }
+                                />
+                                <Input
+                                  type='number'
+                                  min={0}
+                                  step='any'
+                                  value={item.price}
+                                  placeholder={t('Price per request (USD)')}
+                                  onChange={(event) =>
+                                    setBillingDisplay((items) =>
+                                      items.map((current, currentIndex) =>
+                                        currentIndex === index
+                                          ? {
+                                              ...current,
+                                              price: Number(event.target.value),
+                                            }
+                                          : current
+                                      )
+                                    )
+                                  }
+                                />
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='icon'
+                                  aria-label={t('Delete')}
+                                  onClick={() =>
+                                    setBillingDisplay((items) =>
+                                      items.filter(
+                                        (_, currentIndex) =>
+                                          currentIndex !== index
+                                      )
+                                    )
+                                  }
+                                >
+                                  <Trash2 className='text-destructive h-4 w-4' />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </Field>
+                      )}
                     </FieldGroup>
                   </TabsContent>
                 </Tabs>
