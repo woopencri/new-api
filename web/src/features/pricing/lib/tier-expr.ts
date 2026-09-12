@@ -298,6 +298,8 @@ export function evalExprLocally(
       abs: Math.abs,
       ceil: Math.ceil,
       floor: Math.floor,
+      param: () => null,
+      nil: null,
     }
     for (const field of ESTIMATOR_VARS) {
       env[field.var] = extraTokenValues[field.stateKey] || 0

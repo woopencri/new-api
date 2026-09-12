@@ -325,10 +325,9 @@ function splitTopLevelMultiply(expr: string): string[] {
     const char = expr[index]
     if (char === '(') depth += 1
     if (char === ')') depth -= 1
-    if (depth === 0 && expr.slice(index, index + 3) === ' * ') {
+    if (depth === 0 && char === '*') {
       parts.push(expr.slice(start, index).trim())
-      start = index + 3
-      index += 2
+      start = index + 1
     }
   }
   parts.push(expr.slice(start).trim())
@@ -343,10 +342,10 @@ function splitTopLevelAnd(expr: string): string[] {
     const c = expr[i]
     if (c === '(') depth += 1
     if (c === ')') depth -= 1
-    if (depth === 0 && expr.slice(i, i + 4) === ' && ') {
+    if (depth === 0 && expr.slice(i, i + 2) === '&&') {
       parts.push(expr.slice(start, i).trim())
-      start = i + 4
-      i += 3
+      start = i + 2
+      i += 1
     }
   }
   parts.push(expr.slice(start).trim())
@@ -474,7 +473,7 @@ function tryParseRequestCondition(expr: string): RequestCondition | null {
 }
 
 function tryParseRuleGroupFactor(part: string): RequestRuleGroup | null {
-  const m = part.match(/^\((.+) \? ([\d.eE+-]+) : 1\)$/s)
+  const m = part.match(/^\(\s*(.+?)\s*\?\s*([\d.eE+-]+)\s*:\s*1\s*\)$/s)
   if (!m) return null
 
   const conditionStr = m[1]
@@ -537,7 +536,7 @@ export function splitBillingExprAndRequestRules(expr: string): {
   const trimmed = (expr || '').trim()
   if (!trimmed) return { billingExpr: '', requestRuleExpr: '' }
 
-  const parts = splitTopLevelMultiply(trimmed)
+  const parts = splitTopLevelMultiply(unwrapOuterParens(trimmed))
   if (parts.length <= 1) return { billingExpr: trimmed, requestRuleExpr: '' }
 
   const ruleParts: string[] = []
