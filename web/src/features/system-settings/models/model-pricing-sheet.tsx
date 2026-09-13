@@ -158,6 +158,7 @@ export const ModelPricingEditorPanel = forwardRef<
   const [billingExpr, setBillingExpr] = useState('')
   const [requestRuleExpr, setRequestRuleExpr] = useState('')
   const [expressionPerRequest, setExpressionPerRequest] = useState(false)
+  const [expressionDraftValid, setExpressionDraftValid] = useState(true)
   const [billingDisplay, setBillingDisplay] = useState<BillingDisplayItem[]>([])
   const [editorReloadToken, setEditorReloadToken] = useState(0)
   const isEditMode = !!editData
@@ -192,14 +193,14 @@ export const ModelPricingEditorPanel = forwardRef<
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
       })
-      setPricingMode(
+      if (
         editData.billingMode === 'tiered_expr' ||
-          editData.billingMode === 'per_request_expr'
-          ? 'tiered_expr'
-          : editData.price
-            ? 'per-request'
-            : 'per-token'
-      )
+        editData.billingMode === 'per_request_expr'
+      ) {
+        setPricingMode('tiered_expr')
+      } else {
+        setPricingMode(editData.price ? 'per-request' : 'per-token')
+      }
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
       setExpressionPerRequest(editData.billingMode === 'per_request_expr')
@@ -227,6 +228,7 @@ export const ModelPricingEditorPanel = forwardRef<
     setLanePrices(nextLaneState.prices)
     setLaneEnabled(nextLaneState.enabled)
     setEditorReloadToken((token) => token + 1)
+    setExpressionDraftValid(true)
   }, [editData, form])
 
   const setFormValue = (field: keyof ModelPricingFormValues, value: string) => {
@@ -342,6 +344,7 @@ export const ModelPricingEditorPanel = forwardRef<
   }
 
   const handleModeChange = (value: string) => {
+    if (!expressionDraftValid) return
     const nextMode = value as PricingMode
     setPricingMode(nextMode)
     if (nextMode === 'tiered_expr' && !billingExpr) {
@@ -420,6 +423,7 @@ export const ModelPricingEditorPanel = forwardRef<
   }, [editData, laneEnabled, lanePrices, pricingMode, promptPrice, t])
 
   const validatePricingValues = useCallback(() => {
+    if (pricingMode === 'tiered_expr' && !expressionDraftValid) return false
     if (
       pricingMode === 'per-token' &&
       toNumberOrNull(promptPrice) === null &&
@@ -445,7 +449,15 @@ export const ModelPricingEditorPanel = forwardRef<
     }
 
     return true
-  }, [form, laneEnabled, lanePrices, pricingMode, promptPrice, t])
+  }, [
+    expressionDraftValid,
+    form,
+    laneEnabled,
+    lanePrices,
+    pricingMode,
+    promptPrice,
+    t,
+  ])
 
   const buildSubmitData = useCallback(
     (values: ModelPricingFormValues) => {
@@ -573,10 +585,16 @@ export const ModelPricingEditorPanel = forwardRef<
                   className='gap-4'
                 >
                   <TabsList className='grid w-full grid-cols-3'>
-                    <TabsTrigger value='per-token'>
+                    <TabsTrigger
+                      value='per-token'
+                      disabled={!expressionDraftValid}
+                    >
                       {t('Per-token')}
                     </TabsTrigger>
-                    <TabsTrigger value='per-request'>
+                    <TabsTrigger
+                      value='per-request'
+                      disabled={!expressionDraftValid}
+                    >
                       {t('Per-request')}
                     </TabsTrigger>
                     <TabsTrigger value='tiered_expr'>
@@ -681,10 +699,17 @@ export const ModelPricingEditorPanel = forwardRef<
                           </FieldDescription>
                         </div>
                         <Switch
+                          aria-label={t('Charge expression per request')}
                           checked={expressionPerRequest}
+                          disabled={!expressionDraftValid}
                           onCheckedChange={(checked) => {
                             setExpressionPerRequest(checked)
-                            if (checked && !billingExpr.trim()) {
+                            if (
+                              checked &&
+                              (!billingExpr.trim() ||
+                                billingExpr.trim() ===
+                                  'tier("base", p * 0 + c * 0)')
+                            ) {
                               setBillingExpr('tier("base", 0.15)')
                             }
                           }}
@@ -695,6 +720,8 @@ export const ModelPricingEditorPanel = forwardRef<
                         modelName={watchedValues.name}
                         billingExpr={billingExpr}
                         requestRuleExpr={requestRuleExpr}
+                        perRequest={expressionPerRequest}
+                        onValidityChange={setExpressionDraftValid}
                         onBillingExprChange={setBillingExpr}
                         onRequestRuleExprChange={setRequestRuleExpr}
                       />
@@ -729,6 +756,8 @@ export const ModelPricingEditorPanel = forwardRef<
                           <div className='space-y-2'>
                             {billingDisplay.map((item, index) => (
                               <div
+                                // Display rows are fully controlled positional fields, with no row-local state.
+                                // oxlint-disable-next-line react/no-array-index-key
                                 key={index}
                                 className='grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2'
                               >
@@ -826,7 +855,7 @@ export const ModelPricingEditorPanel = forwardRef<
                   <Button
                     type='button'
                     onClick={onSave}
-                    disabled={isSaving}
+                    disabled={isSaving || !expressionDraftValid}
                     className='w-full sm:w-auto'
                   >
                     <Save data-icon='inline-start' />

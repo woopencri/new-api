@@ -250,6 +250,18 @@ quota = exprOutput * QuotaPerUnit * groupRatio
 
 `billing_display` does not affect either formula. It exists only so the model marketplace can describe parameter-dependent request prices that cannot be inferred reliably from an arbitrary expression.
 
+### Per-request visual editing
+
+The model pricing editor supports fixed `tier("name", price)` values and ordered
+parameter-based request-price tiers, for example
+`param("size") == "1024x1024" ? tier("1K", 0.015) : tier("default", 0.2)`.
+Each tier can match multiple string values joined with `||`; all tiers use the
+same parameter path, and the last tier is the fallback. Prices are USD per request.
+The visual parser preserves `v1:` and only accepts this complete, lossless subset.
+Other formulas remain in the raw expression editor. Loading an expression or
+switching editor views must not emit a replacement expression; only explicit
+edits regenerate it. Incomplete visual tiers block saving until corrected.
+
 ### Expression Versioning
 
 Expressions can carry a version prefix: `v1:tier(...)`. No prefix = v1.
