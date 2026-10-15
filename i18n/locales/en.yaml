@@ -259,6 +259,8 @@ common.invalid_input: "Invalid input"
 
 # Distributor messages
 distributor.invalid_request: "Invalid request: {{.Error}}"
+distributor.routing_unmatched: "No routing rule matches the request parameters for this model."
+distributor.routing_channel_forbidden: "The specified channel is outside the request routing pool."
 distributor.invalid_channel_id: "Invalid channel ID"
 distributor.channel_disabled: "This channel has been disabled"
 distributor.affinity_channel_disabled: "The channel selected by channel affinity has been disabled, and retry was stopped by rule. Please contact the administrator"

@@ -24,6 +24,7 @@ import { ClaudeSettingsCard } from './claude-settings-card'
 import { GeminiSettingsCard } from './gemini-settings-card'
 import { GlobalSettingsCard } from './global-settings-card'
 import { GrokSettingsCard } from './grok-settings-card'
+import { RequestRoutingSection } from './request-routing-section'
 import { RoutingReliabilitySection } from './routing-reliability-section'
 
 function formatJsonForEditor(value: string, fallback: string) {
@@ -86,6 +87,16 @@ const MODELS_SECTIONS = [
           'monitor_setting.channel_test_mode':
             settings['monitor_setting.channel_test_mode'],
         }}
+      />
+    ),
+  },
+  {
+    id: 'request-routing',
+    titleKey: 'Request parameter routing',
+    build: (settings: ModelSettings) => (
+      <RequestRoutingSection
+        key={settings.RequestRoutingSetting}
+        value={settings.RequestRoutingSetting}
       />
     ),
   },

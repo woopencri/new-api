@@ -309,6 +309,8 @@ const (
 // Distributor related messages
 const (
 	MsgDistributorInvalidRequest          = "distributor.invalid_request"
+	MsgDistributorRoutingUnmatched        = "distributor.routing_unmatched"
+	MsgDistributorRoutingChannelForbidden = "distributor.routing_channel_forbidden"
 	MsgDistributorInvalidChannelId        = "distributor.invalid_channel_id"
 	MsgDistributorChannelDisabled         = "distributor.channel_disabled"
 	MsgDistributorAffinityChannelDisabled = "distributor.affinity_channel_disabled"

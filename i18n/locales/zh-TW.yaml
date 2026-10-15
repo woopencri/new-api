@@ -260,6 +260,8 @@ common.invalid_input: "輸入不合法"
 
 # Distributor messages
 distributor.invalid_request: "無效的請求，{{.Error}}"
+distributor.routing_unmatched: "請求參數未符合此模型的路由規則，請檢查解析度等參數。"
+distributor.routing_channel_forbidden: "指定渠道不在本次請求的路由渠道池中。"
 distributor.invalid_channel_id: "無效的管道 Id"
 distributor.channel_disabled: "該管道已被禁用"
 distributor.affinity_channel_disabled: "管道親和性命中的管道已被禁用，已按規則停止重試，請聯絡管理員處理"

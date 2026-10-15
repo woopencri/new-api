@@ -30,6 +30,8 @@ func AllOption() ([]*Option, error) {
 func InitOptionMap() {
 	common.OptionMapRWMutex.Lock()
 	common.OptionMap = make(map[string]string)
+	common.OptionMap[operation_setting.RequestRoutingOption] = operation_setting.DefaultRequestRouting
+	_ = operation_setting.UpdateRequestRoutingSetting(operation_setting.DefaultRequestRouting)
 
 	// 添加原有的系统配置
 	common.OptionMap["FileUploadPermission"] = strconv.Itoa(common.FileUploadPermission)
@@ -208,6 +210,9 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == operation_setting.RequestRoutingOption {
+		return UpdateOptionsBulk(map[string]string{key: value})
+	}
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -231,6 +236,11 @@ func UpdateOption(key string, value string) error {
 func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
+	}
+	if value, exists := values[operation_setting.RequestRoutingOption]; exists {
+		if _, err := operation_setting.ParseRequestRoutingSetting(value); err != nil {
+			return err
+		}
 	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
@@ -265,6 +275,11 @@ func updateOptionMap(key string, value string) (err error) {
 	}
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
+	if key == operation_setting.RequestRoutingOption {
+		if err := operation_setting.UpdateRequestRoutingSetting(value); err != nil {
+			return err
+		}
+	}
 	common.OptionMap[key] = value
 
 	// 检查是否是模型配置 - 使用更规范的方式处理

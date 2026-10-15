@@ -141,6 +141,11 @@ func UpdateOption(c *gin.Context) {
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
 	switch option.Key {
+	case operation_setting.RequestRoutingOption:
+		if _, err := operation_setting.ParseRequestRoutingSetting(option.Value.(string)); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)

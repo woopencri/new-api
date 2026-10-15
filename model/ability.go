@@ -3,12 +3,15 @@ package model
 import (
 	"errors"
 	"fmt"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -105,17 +108,63 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+func GetChannel(group string, model string, retry int, requestPath string, channelPools ...[]int) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
-	channelQuery, err := getChannelQuery(group, model, retry)
-	if err != nil {
-		return nil, err
-	}
-	if common.UsingMainDatabase(common.DatabaseTypeSQLite) || common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
+	if len(channelPools) > 0 && channelPools[0] != nil {
+		if len(channelPools[0]) == 0 {
+			return nil, nil
+		}
+		// Restrict before computing priority, otherwise an unrelated high-priority
+		// channel could hide every eligible channel in the requested pool.
+		models := []string{model}
+		if normalized := ratio_setting.FormatMatchingModelName(model); normalized != model {
+			models = append(models, normalized)
+		}
+		for _, lookupModel := range models {
+			err = DB.Where(commonGroupCol+" = ? AND model = ? AND enabled = ?", group, lookupModel, true).
+				Where("channel_id IN ?", channelPools[0]).
+				Where("channel_id IN (?)", DB.Model(&Channel{}).Select("id").Where("status = ?", common.ChannelStatusEnabled)).
+				Find(&abilities).Error
+			if err != nil {
+				return nil, err
+			}
+			abilities = filterAbilitiesByRequestPathAndModel(abilities, requestPath, model)
+			if len(abilities) > 0 {
+				break
+			}
+		}
+		priorities := make([]int64, 0, len(abilities))
+		for _, ability := range abilities {
+			priority := int64(0)
+			if ability.Priority != nil {
+				priority = *ability.Priority
+			}
+			priorities = append(priorities, priority)
+		}
+		sort.Slice(priorities, func(i, j int) bool { return priorities[i] > priorities[j] })
+		priorities = slices.Compact(priorities)
+		if len(priorities) == 0 {
+			return nil, nil
+		}
+		retry = max(0, min(retry, len(priorities)-1))
+		filtered := make([]Ability, 0, len(abilities))
+		for _, ability := range abilities {
+			priority := int64(0)
+			if ability.Priority != nil {
+				priority = *ability.Priority
+			}
+			if priority == priorities[retry] {
+				filtered = append(filtered, ability)
+			}
+		}
+		abilities = filtered
 	} else {
+		channelQuery, queryErr := getChannelQuery(group, model, retry)
+		if queryErr != nil {
+			return nil, queryErr
+		}
 		err = channelQuery.Order("weight DESC").Find(&abilities).Error
 	}
 	if err != nil {

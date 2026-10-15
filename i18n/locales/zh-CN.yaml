@@ -260,6 +260,8 @@ common.invalid_input: "输入不合法"
 
 # Distributor messages
 distributor.invalid_request: "无效的请求，{{.Error}}"
+distributor.routing_unmatched: "请求参数未匹配该模型的路由规则，请检查分辨率等参数。"
+distributor.routing_channel_forbidden: "指定渠道不在本次请求的路由渠道池中。"
 distributor.invalid_channel_id: "无效的渠道 Id"
 distributor.channel_disabled: "该渠道已被禁用"
 distributor.affinity_channel_disabled: "渠道亲和性命中的渠道已被禁用，已按规则停止重试，请联系管理员处理"
