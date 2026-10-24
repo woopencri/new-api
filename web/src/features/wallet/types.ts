@@ -277,12 +277,13 @@ export interface TopupRecord {
   invoice_fee_quota?: number
 }
 
-export type InvoiceStatus = 'pending' | 'completed' | 'rejected'
+export type InvoiceStatus = 'pending' | 'completed' | 'closed' | 'rejected'
 
 export interface InvoiceConfig {
   enabled: boolean
   fee_percent: number
   min_amount: number
+  max_age_days: number
   permission_mode: 'all' | 'specified'
   can_apply: boolean
   email: string
@@ -307,6 +308,8 @@ export interface InvoiceApplication {
   fee_percent: number
   fee_amount: number
   fee_quota: number
+  fee_refunded: boolean
+  version: number
   status: InvoiceStatus
   create_time: number
   complete_time?: number

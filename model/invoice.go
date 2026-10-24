@@ -21,16 +21,19 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
 const (
 	InvoiceStatusPending   = "pending"
 	InvoiceStatusCompleted = "completed"
+	InvoiceStatusClosed    = "closed"
 	InvoiceStatusRejected  = "rejected"
 )
 
@@ -46,6 +49,8 @@ type InvoiceApplication struct {
 	FeePercent   float64 `json:"fee_percent"`
 	FeeAmount    float64 `json:"fee_amount"`
 	FeeQuota     int     `json:"fee_quota"`
+	FeeRefunded  bool    `json:"fee_refunded"`
+	Version      int     `json:"version" gorm:"default:0"`
 	Status       string  `json:"status" gorm:"type:varchar(32);index"`
 	CreateTime   int64   `json:"create_time"`
 	CompleteTime int64   `json:"complete_time"`
@@ -59,26 +64,24 @@ type InvoiceConfig struct {
 	Enabled        bool    `json:"enabled"`
 	FeePercent     float64 `json:"fee_percent"`
 	MinAmount      float64 `json:"min_amount"`
+	MaxAgeDays     int     `json:"max_age_days"`
 	PermissionMode string  `json:"permission_mode"`
 }
 
 func GetInvoiceConfig() InvoiceConfig {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
 	mode := strings.ToLower(strings.TrimSpace(setting.InvoicePermissionMode))
 	if mode != "all" {
 		mode = "specified"
 	}
 	fee := setting.InvoiceFeePercent
-	if fee < 0 || fee > 100 {
-		fee = 0
-	}
 	minAmount := setting.InvoiceMinAmount
-	if minAmount < 0 {
-		minAmount = 0
-	}
 	return InvoiceConfig{
 		Enabled:        setting.InvoiceEnabled,
 		FeePercent:     fee,
 		MinAmount:      minAmount,
+		MaxAgeDays:     setting.InvoiceMaxAgeDays,
 		PermissionMode: mode,
 	}
 }
@@ -88,26 +91,89 @@ func UserCanApplyInvoice(user *User, topUp *TopUp) bool {
 		return false
 	}
 	config := GetInvoiceConfig()
-	if !config.Enabled || topUp.Money <= config.MinAmount {
+	if !config.Enabled || math.IsNaN(topUp.Money) || math.IsInf(topUp.Money, 0) || topUp.Money <= config.MinAmount {
 		return false
 	}
 	if config.PermissionMode != "all" && !user.InvoiceEnabled {
 		return false
 	}
+	if config.MaxAgeDays < 0 || config.MaxAgeDays > setting.MaxInvoiceApplicationDays {
+		return false
+	}
+	if config.MaxAgeDays > 0 {
+		paidAt := topUp.CompleteTime
+		if paidAt <= 0 {
+			paidAt = topUp.CreateTime
+		}
+		if paidAt <= 0 || paidAt < common.GetTimestamp()-int64(config.MaxAgeDays)*24*60*60 {
+			return false
+		}
+	}
 	return true
 }
 
 func CalculateInvoiceFee(topUp *TopUp) (feeAmount float64, feeQuota int, err error) {
-	if topUp == nil || topUp.Amount <= 0 || topUp.Money <= 0 {
+	if topUp == nil || topUp.Amount <= 0 || topUp.Money <= 0 || math.IsNaN(topUp.Money) || math.IsInf(topUp.Money, 0) {
 		return 0, 0, errors.New("订单金额无效")
 	}
 	config := GetInvoiceConfig()
-	feeAmount = topUp.Money * config.FeePercent / 100
-	feeQuota, clamp := common.QuotaRoundChecked(float64(topUp.Amount) * config.FeePercent / 100)
+	if math.IsNaN(config.FeePercent) || math.IsInf(config.FeePercent, 0) || config.FeePercent < 0 || config.FeePercent > 100 || common.QuotaPerUnit <= 0 || math.IsNaN(common.QuotaPerUnit) || math.IsInf(common.QuotaPerUnit, 0) {
+		return 0, 0, errors.New("开票手续费配置无效")
+	}
+	ratio := decimal.NewFromFloat(config.FeePercent).Div(decimal.NewFromInt(100))
+	feeAmount, _ = decimal.NewFromFloat(topUp.Money).Mul(ratio).Float64()
+
+	// Match the quota actually credited by each payment provider. Most providers
+	// store Amount in wallet currency units; Creem already stores raw quota,
+	// while Stripe credits Money after applying its group ratio.
+	creditedQuota := decimal.NewFromInt(topUp.Amount)
+	provider := topUp.PaymentProvider
+	if provider == "" {
+		provider = topUp.PaymentMethod
+	}
+	switch provider {
+	case PaymentProviderCreem:
+	case PaymentProviderStripe:
+		creditedQuota = decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+	default:
+		creditedQuota = creditedQuota.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+	}
+	// Round up to the smallest quota unit so a positive fee cannot become free.
+	feeQuota, clamp := common.QuotaFromDecimalChecked(creditedQuota.Mul(ratio).Ceil())
 	if clamp != nil {
 		return 0, 0, errors.New("开票手续费超出额度范围")
 	}
 	return feeAmount, feeQuota, nil
+}
+
+// IsInvoiceApplicationClosed includes the historical rejected state.
+func IsInvoiceApplicationClosed(status string) bool {
+	return status == InvoiceStatusClosed || status == InvoiceStatusRejected
+}
+
+// refundInvoiceFee refunds the recorded charge inside the caller's transaction.
+// The application must be locked and the caller persists FeeRefunded atomically.
+func refundInvoiceFee(tx *gorm.DB, user *User, application *InvoiceApplication) (int, error) {
+	if application.FeeRefunded {
+		return 0, nil
+	}
+	quota := application.FeeQuota
+	if quota < 0 || quota > math.MaxInt32 || user.Quota > math.MaxInt32-quota {
+		return 0, errors.New("开票手续费退款超出余额范围")
+	}
+	if quota > 0 {
+		result := tx.Model(&User{}).Where("id = ? AND quota <= ?", user.Id, math.MaxInt32-quota).
+			Update("quota", gorm.Expr("quota + ?", quota))
+		if result.Error != nil {
+			return 0, result.Error
+		}
+		if result.RowsAffected != 1 {
+			return 0, errors.New("开票手续费退款失败，请刷新后重试")
+		}
+		user.Quota += quota
+	}
+	application.FeeRefunded = true
+	return quota, nil
 }
 
 func CreateInvoiceApplication(userId int, topUpId int, buyerName string, taxpayerId string, email string) (*InvoiceApplication, error) {
@@ -118,6 +184,7 @@ func CreateInvoiceApplication(userId int, topUpId int, buyerName string, taxpaye
 		return nil, errors.New("请完整填写开票信息")
 	}
 	var application InvoiceApplication
+	quotaDelta := 0
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		topUp := &TopUp{}
 		if err := lockForUpdate(tx).Where("id = ?", topUpId).First(topUp).Error; err != nil {
@@ -132,7 +199,16 @@ func CreateInvoiceApplication(userId int, topUpId int, buyerName string, taxpaye
 		}
 		var existing InvoiceApplication
 		if err := tx.Where("top_up_id = ?", topUpId).First(&existing).Error; err == nil {
-			return errors.New("该订单已申请开票")
+			if !IsInvoiceApplicationClosed(existing.Status) {
+				return errors.New("该订单已申请开票")
+			}
+			// Legacy rejected applications were not refunded. Refund their exact
+			// recorded charge before collecting the fee for the new application.
+			refunded, err := refundInvoiceFee(tx, user, &existing)
+			if err != nil {
+				return err
+			}
+			quotaDelta += refunded
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
@@ -144,28 +220,47 @@ func CreateInvoiceApplication(userId int, topUpId int, buyerName string, taxpaye
 			return errors.New("余额不足以支付开票手续费")
 		}
 		if feeQuota > 0 {
-			if err := tx.Model(&User{}).Where("id = ? AND quota >= ?", userId, feeQuota).Update("quota", gorm.Expr("quota - ?", feeQuota)).Error; err != nil {
-				return err
+			result := tx.Model(&User{}).Where("id = ? AND quota >= ?", userId, feeQuota).Update("quota", gorm.Expr("quota - ?", feeQuota))
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return errors.New("余额不足以支付开票手续费")
 			}
 		}
-		now := common.GetTimestamp()
+		quotaDelta -= feeQuota
 		application = InvoiceApplication{
+			Id: existing.Id, Version: existing.Version + 1,
 			UserId: userId, TopUpId: topUpId, TradeNo: topUp.TradeNo,
 			BuyerName: buyerName, TaxpayerId: taxpayerId, Email: email,
 			Amount: topUp.Money, FeePercent: GetInvoiceConfig().FeePercent,
 			FeeAmount: feeAmount, FeeQuota: feeQuota, Status: InvoiceStatusPending,
-			CreateTime: now,
+			CreateTime: common.GetTimestamp(),
 		}
-		return tx.Create(&application).Error
+		if existing.Id == 0 {
+			return tx.Create(&application).Error
+		}
+		// Keep one application per order while fencing off stale administrator
+		// saves from earlier applications. Closed-at/refund state resets here.
+		result := tx.Model(&InvoiceApplication{}).Where("id = ? AND version = ?", existing.Id, existing.Version).
+			Select("buyer_name", "taxpayer_id", "email", "amount", "fee_percent", "fee_amount", "fee_quota", "fee_refunded", "status", "create_time", "complete_time", "remark", "version").Updates(&application)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("开票申请已更新，请刷新后重试")
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	if application.FeeQuota > 0 {
-		if err := cacheDecrUserQuota(userId, int64(application.FeeQuota)); err != nil {
-			common.SysLog(fmt.Sprintf("failed to decrease invoice fee quota cache for user %d: %s", userId, err.Error()))
+	if quotaDelta != 0 {
+		if err := cacheIncrUserQuota(userId, int64(quotaDelta)); err != nil {
+			common.SysLog(fmt.Sprintf("failed to update invoice quota cache for user %d: %s", userId, err.Error()))
 		}
 	}
+	RecordLog(userId, LogTypeSystem, fmt.Sprintf("申请开票，订单号：%s，申请版本：%d，手续费：%.6f，余额额度变动：%d", application.TradeNo, application.Version, application.FeeAmount, quotaDelta))
 	return &application, nil
 }
 
@@ -199,7 +294,9 @@ func ListInvoiceApplications(pageInfo *common.PageInfo, keyword string, status s
 		pattern := "%" + strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(keyword, "!", "!!"), "%", "!%"), "_", "!_") + "%"
 		query = query.Where("trade_no LIKE ? ESCAPE '!' OR buyer_name LIKE ? ESCAPE '!' OR taxpayer_id LIKE ? ESCAPE '!' OR email LIKE ? ESCAPE '!'", pattern, pattern, pattern, pattern)
 	}
-	if status != "" {
+	if IsInvoiceApplicationClosed(status) {
+		query = query.Where("status IN ?", []string{InvoiceStatusClosed, InvoiceStatusRejected})
+	} else if status != "" {
 		query = query.Where("status = ?", status)
 	}
 	var total int64
@@ -223,15 +320,69 @@ func ListInvoiceApplications(pageInfo *common.PageInfo, keyword string, status s
 	return applications, total, nil
 }
 
-func UpdateInvoiceStatus(id int, status string, remark string) error {
-	if status != InvoiceStatusPending && status != InvoiceStatusCompleted && status != InvoiceStatusRejected {
-		return errors.New("开票状态无效")
+func UpdateInvoiceStatus(id int, status string, remark string, version int) (*InvoiceApplication, error) {
+	if IsInvoiceApplicationClosed(status) {
+		status = InvoiceStatusClosed
 	}
-	updates := map[string]interface{}{"status": status, "remark": strings.TrimSpace(remark)}
-	if status == InvoiceStatusCompleted {
-		updates["complete_time"] = common.GetTimestamp()
-	} else {
-		updates["complete_time"] = 0
+	if status != InvoiceStatusPending && status != InvoiceStatusCompleted && status != InvoiceStatusClosed {
+		return nil, errors.New("开票状态无效")
 	}
-	return DB.Model(&InvoiceApplication{}).Where("id = ?", id).Updates(updates).Error
+	var application InvoiceApplication
+	if err := DB.First(&application, id).Error; err != nil {
+		return nil, err
+	}
+	refunded := 0
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var topUp TopUp
+		if err := lockForUpdate(tx).First(&topUp, application.TopUpId).Error; err != nil {
+			return err
+		}
+		if err := lockForUpdate(tx).First(&application, id).Error; err != nil {
+			return err
+		}
+		if application.Version != version {
+			return errors.New("开票申请已更新，请刷新后重试")
+		}
+		if IsInvoiceApplicationClosed(application.Status) && status != InvoiceStatusClosed {
+			return errors.New("已关闭的申请请由用户重新提交")
+		}
+		if status == InvoiceStatusClosed && !application.FeeRefunded {
+			var user User
+			if err := lockForUpdate(tx).First(&user, application.UserId).Error; err != nil {
+				return err
+			}
+			var err error
+			refunded, err = refundInvoiceFee(tx, &user, &application)
+			if err != nil {
+				return err
+			}
+		}
+		if status == InvoiceStatusCompleted && application.Status != InvoiceStatusCompleted {
+			application.CompleteTime = common.GetTimestamp()
+		} else if status != InvoiceStatusCompleted {
+			application.CompleteTime = 0
+		}
+		application.Status = status
+		application.Remark = strings.TrimSpace(remark)
+		application.Version++
+		result := tx.Model(&InvoiceApplication{}).Where("id = ? AND version = ?", id, version).
+			Select("status", "remark", "complete_time", "fee_refunded", "version").Updates(&application)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("开票申请已更新，请刷新后重试")
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if refunded > 0 {
+		if err := cacheIncrUserQuota(application.UserId, int64(refunded)); err != nil {
+			common.SysLog(fmt.Sprintf("failed to refund invoice quota cache for user %d: %s", application.UserId, err.Error()))
+		}
+	}
+	RecordLog(application.UserId, LogTypeSystem, fmt.Sprintf("更新开票申请，订单号：%s，版本：%d，状态：%s，退还手续费额度：%d", application.TradeNo, application.Version, application.Status, refunded))
+	return &application, nil
 }

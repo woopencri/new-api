@@ -24,6 +24,7 @@ import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { formatQuotaWithCurrency } from '@/lib/currency'
 
 import { createInvoiceApplication } from '../../api'
 import type { TopupRecord } from '../../types'
@@ -129,9 +130,20 @@ export function InvoiceApplicationDialog({
               <div className='text-muted-foreground'>
                 {t('Balance deduction')}
               </div>
-              <div className='font-medium'>{record.invoice_fee_quota ?? 0}</div>
+              <div className='font-medium'>
+                {formatQuotaWithCurrency(record.invoice_fee_quota ?? 0, {
+                  digitsLarge: 6,
+                  digitsSmall: 6,
+                  abbreviate: false,
+                })}
+              </div>
             </div>
           </div>
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'The balance deduction is the balance credited by this order multiplied by the handling fee percentage.'
+            )}
+          </p>
           <div className='space-y-2'>
             <Label htmlFor='invoice-buyer-name'>{t('Buyer name')}</Label>
             <Input
@@ -161,6 +173,11 @@ export function InvoiceApplicationDialog({
               onChange={(event) => setEmail(event.target.value)}
             />
           </div>
+          <p className='text-muted-foreground text-xs leading-relaxed'>
+            {t(
+              'Invoices are usually issued within 1–3 business days. The handling fee is deducted directly from your account balance. Invoice type: ordinary invoice.'
+            )}
+          </p>
         </div>
       ) : null}
     </Dialog>

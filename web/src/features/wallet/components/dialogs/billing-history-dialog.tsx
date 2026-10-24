@@ -36,7 +36,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
@@ -80,11 +80,13 @@ import { InvoiceApplicationDialog } from './invoice-application-dialog'
 interface BillingHistoryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onBalanceChange?: () => Promise<void>
 }
 
 export function BillingHistoryDialog({
   open,
   onOpenChange,
+  onBalanceChange,
 }: BillingHistoryDialogProps) {
   const { t } = useTranslation()
   const {
@@ -101,7 +103,7 @@ export function BillingHistoryDialog({
     handleSearch,
     handleCompleteOrder,
     refresh: fetchBillingHistory,
-  } = useBillingHistory()
+  } = useBillingHistory({ enabled: open })
 
   const [confirmTradeNo, setConfirmTradeNo] = useState<string | null>(null)
   const [invoiceRecord, setInvoiceRecord] = useState<
@@ -114,6 +116,10 @@ export function BillingHistoryDialog({
     enabled: open && !isAdmin,
   })
   const { copyToClipboard, copiedText } = useCopyToClipboard({ notify: false })
+
+  useEffect(() => {
+    if (open) void onBalanceChange?.()
+  }, [open, onBalanceChange])
 
   const totalPages = Math.ceil(total / pageSize)
   const invoiceEmail = invoiceConfigResponse?.data?.email || currentUserEmail
@@ -250,7 +256,13 @@ export function BillingHistoryDialog({
                   {t('Invoice application pending')}
                 </div>
               )}
-              {!record.invoice_status && record.invoice_available && (
+              {(record.invoice_status === 'closed' ||
+                record.invoice_status === 'rejected') && (
+                <div className='text-muted-foreground mt-4 text-sm'>
+                  {t('Invoice application closed')}
+                </div>
+              )}
+              {record.invoice_available && (
                 <div className='mt-4 flex justify-end'>
                   <Button
                     size='sm'
@@ -407,7 +419,7 @@ export function BillingHistoryDialog({
         defaultEmail={invoiceEmail}
         onSuccess={async () => {
           setInvoiceRecord(null)
-          await fetchBillingHistory()
+          await Promise.all([fetchBillingHistory(), onBalanceChange?.()])
         }}
       />
     </>

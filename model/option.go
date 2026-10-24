@@ -87,6 +87,7 @@ func InitOptionMap() {
 	common.OptionMap["MinTopUp"] = strconv.Itoa(operation_setting.MinTopUp)
 	common.OptionMap["InvoiceEnabled"] = strconv.FormatBool(setting.InvoiceEnabled)
 	common.OptionMap["InvoiceFeePercent"] = strconv.FormatFloat(setting.InvoiceFeePercent, 'f', -1, 64)
+	common.OptionMap["InvoiceMaxAgeDays"] = strconv.Itoa(setting.InvoiceMaxAgeDays)
 	common.OptionMap["InvoiceMinAmount"] = strconv.FormatFloat(setting.InvoiceMinAmount, 'f', -1, 64)
 	common.OptionMap["InvoicePermissionMode"] = setting.InvoicePermissionMode
 	common.OptionMap["StripeMinTopUp"] = strconv.Itoa(setting.StripeMinTopUp)
@@ -441,6 +442,8 @@ func updateOptionMap(key string, value string) (err error) {
 		operation_setting.MinTopUp, _ = strconv.Atoi(value)
 	case "InvoiceFeePercent":
 		setting.InvoiceFeePercent, _ = strconv.ParseFloat(value, 64)
+	case "InvoiceMaxAgeDays":
+		setting.InvoiceMaxAgeDays, _ = strconv.Atoi(value)
 	case "InvoiceMinAmount":
 		setting.InvoiceMinAmount, _ = strconv.ParseFloat(value, 64)
 	case "InvoicePermissionMode":

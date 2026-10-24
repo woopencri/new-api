@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { SectionPageLayout } from '@/components/layout'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -43,20 +42,16 @@ import {
   updateAdminInvoiceConfig,
 } from '../wallet/api'
 import type { InvoiceApplication, InvoiceConfig } from '../wallet/types'
+import { InvoiceApplicationCard } from './invoice-application-card'
 
 const defaultConfig: InvoiceConfig = {
   enabled: false,
   fee_percent: 0,
   min_amount: 0,
+  max_age_days: 0,
   permission_mode: 'specified',
   can_apply: false,
   email: '',
-}
-
-function statusLabel(status: string, t: (key: string) => string) {
-  if (status === 'completed') return t('Completed')
-  if (status === 'rejected') return t('Rejected')
-  return t('Pending')
 }
 
 export function Invoices() {
@@ -106,12 +101,21 @@ export function Invoices() {
   }, [loadApplications])
 
   const saveConfig = async () => {
+    if (
+      !Number.isInteger(config.max_age_days) ||
+      config.max_age_days < 0 ||
+      config.max_age_days > 36500
+    ) {
+      toast.error(t('Enter a whole number of days between 0 and 36500.'))
+      return
+    }
     setSaving(true)
     try {
       const response = await updateAdminInvoiceConfig({
         enabled: config.enabled,
         fee_percent: Number(config.fee_percent),
         min_amount: Number(config.min_amount),
+        max_age_days: config.max_age_days,
         permission_mode: config.permission_mode,
       })
       if (response.success) {
@@ -133,22 +137,25 @@ export function Invoices() {
     application: InvoiceApplication,
     nextStatus: string
   ) => {
-    const response = await updateAdminInvoiceApplication(application.id, {
-      status: nextStatus,
-    })
-    if (response.success) {
-      toast.success(t('Invoice status updated'))
-      setApplications((current) =>
-        current.map((item) => {
-          if (item.id !== application.id) return item
-          return {
-            ...item,
-            status: nextStatus as InvoiceApplication['status'],
-          }
-        })
-      )
-    } else {
-      toast.error(response.message || t('Failed to update invoice status'))
+    try {
+      const response = await updateAdminInvoiceApplication(application.id, {
+        status: nextStatus,
+        remark: application.remark,
+        version: application.version,
+      })
+      if (response.success && response.data) {
+        const updated = response.data
+        toast.success(t('Invoice status updated'))
+        setApplications((current) =>
+          current.map((item) =>
+            item.id === updated.id ? { ...item, ...updated } : item
+          )
+        )
+      } else {
+        toast.error(response.message || t('Failed to update invoice status'))
+      }
+    } catch {
+      toast.error(t('Failed to update invoice status'))
     }
   }
 
@@ -167,61 +174,11 @@ export function Invoices() {
     applicationsContent = (
       <div className='space-y-3'>
         {applications.map((application) => (
-          <div
-            key={application.id}
-            className='grid gap-3 rounded-md border p-3 lg:grid-cols-[1fr_1fr_auto]'
-          >
-            <div className='space-y-1 text-sm'>
-              <div className='font-medium'>{application.buyer_name}</div>
-              <div>
-                {t('User')}: {application.user?.username || application.user_id}
-              </div>
-              <div>
-                {t('Order number')}: {application.trade_no}
-              </div>
-              <div>
-                {t('Taxpayer identification number')}: {application.taxpayer_id}
-              </div>
-              <div>
-                {t('Invoice receiving email')}: {application.email}
-              </div>
-            </div>
-            <div className='space-y-1 text-sm'>
-              <div>
-                {t('Invoice amount')}: {application.amount.toFixed(2)}
-              </div>
-              <div>
-                {t('Handling fee')}: {application.fee_amount.toFixed(2)}
-              </div>
-              <div>
-                {t('Balance deduction')}: {application.fee_quota}
-              </div>
-              <Badge
-                variant={
-                  application.status === 'completed' ? 'default' : 'secondary'
-                }
-              >
-                {statusLabel(application.status, t)}
-              </Badge>
-            </div>
-            <div className='flex items-start justify-end'>
-              <Select
-                value={application.status}
-                onValueChange={(value) => {
-                  if (value) void updateStatus(application, value)
-                }}
-              >
-                <SelectTrigger className='w-32'>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='pending'>{t('Pending')}</SelectItem>
-                  <SelectItem value='completed'>{t('Completed')}</SelectItem>
-                  <SelectItem value='rejected'>{t('Rejected')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <InvoiceApplicationCard
+            key={`${application.id}:${application.version}`}
+            application={application}
+            onSave={updateStatus}
+          />
         ))}
       </div>
     )
@@ -288,8 +245,36 @@ export function Invoices() {
                 </p>
               </div>
               <div className='space-y-2'>
+                <Label htmlFor='invoice-max-age-days'>
+                  {t('Invoice application window (days)')}
+                </Label>
+                <Input
+                  id='invoice-max-age-days'
+                  type='number'
+                  min='0'
+                  max='36500'
+                  step='1'
+                  value={config.max_age_days}
+                  onChange={(event) =>
+                    setConfig({
+                      ...config,
+                      max_age_days: Number(event.target.value),
+                    })
+                  }
+                />
+                <p className='text-muted-foreground text-xs'>
+                  {t(
+                    'Counted from payment completion. Set to 0 for no time limit. Expired orders cannot be invoiced.'
+                  )}
+                </p>
+              </div>
+              <div className='space-y-2'>
                 <Label>{t('Invoice permission')}</Label>
                 <Select
+                  items={[
+                    { value: 'specified', label: t('Specified users') },
+                    { value: 'all', label: t('All users') },
+                  ]}
                   value={config.permission_mode}
                   onValueChange={(value) => {
                     if (value) {
@@ -332,6 +317,12 @@ export function Invoices() {
                   placeholder={t('Search invoice applications')}
                 />
                 <Select
+                  items={[
+                    { value: '', label: t('All statuses') },
+                    { value: 'pending', label: t('Pending') },
+                    { value: 'completed', label: t('Completed') },
+                    { value: 'closed', label: t('Close application') },
+                  ]}
                   value={status}
                   onValueChange={(value) => setStatus(value ?? '')}
                 >
@@ -342,7 +333,9 @@ export function Invoices() {
                     <SelectItem value=''>{t('All statuses')}</SelectItem>
                     <SelectItem value='pending'>{t('Pending')}</SelectItem>
                     <SelectItem value='completed'>{t('Completed')}</SelectItem>
-                    <SelectItem value='rejected'>{t('Rejected')}</SelectItem>
+                    <SelectItem value='closed'>
+                      {t('Close application')}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <Button

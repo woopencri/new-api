@@ -18,10 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 package setting
 
+// MaxInvoiceApplicationDays bounds the configurable application window to 100 years.
+const MaxInvoiceApplicationDays = 36500
+
 // Invoice configuration.
 var (
 	InvoiceEnabled        = false
 	InvoiceFeePercent     = 0.0
 	InvoiceMinAmount      = 0.0
+	InvoiceMaxAgeDays     = 0
 	InvoicePermissionMode = "specified"
 )

@@ -477,10 +477,11 @@ func GetUserTopUps(c *gin.Context) {
 	for _, topUp := range topups {
 		if application := applications[topUp.Id]; application != nil {
 			topUp.InvoiceStatus = application.Status
-		} else if model.UserCanApplyInvoice(user, topUp) {
-			topUp.InvoiceAvailable = true
+		}
+		if (topUp.InvoiceStatus == "" || model.IsInvoiceApplicationClosed(topUp.InvoiceStatus)) && model.UserCanApplyInvoice(user, topUp) {
 			feeAmount, feeQuota, feeErr := model.CalculateInvoiceFee(topUp)
 			if feeErr == nil {
+				topUp.InvoiceAvailable = true
 				topUp.InvoiceFeeAmount = feeAmount
 				topUp.InvoiceFeeQuota = feeQuota
 			}

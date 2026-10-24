@@ -291,8 +291,8 @@ export async function getAdminInvoiceApplications(
 
 export async function updateAdminInvoiceApplication(
   id: number,
-  request: { status: string; remark?: string }
-): Promise<ApiResponse> {
+  request: { status: string; remark?: string; version: number }
+): Promise<ApiResponse<InvoiceApplication>> {
   const res = await api.put(`/api/invoice/admin/applications/${id}`, request)
   return res.data
 }
