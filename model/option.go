@@ -85,6 +85,10 @@ func InitOptionMap() {
 	common.OptionMap["Price"] = strconv.FormatFloat(operation_setting.Price, 'f', -1, 64)
 	common.OptionMap["USDExchangeRate"] = strconv.FormatFloat(operation_setting.USDExchangeRate, 'f', -1, 64)
 	common.OptionMap["MinTopUp"] = strconv.Itoa(operation_setting.MinTopUp)
+	common.OptionMap["InvoiceEnabled"] = strconv.FormatBool(setting.InvoiceEnabled)
+	common.OptionMap["InvoiceFeePercent"] = strconv.FormatFloat(setting.InvoiceFeePercent, 'f', -1, 64)
+	common.OptionMap["InvoiceMinAmount"] = strconv.FormatFloat(setting.InvoiceMinAmount, 'f', -1, 64)
+	common.OptionMap["InvoicePermissionMode"] = setting.InvoicePermissionMode
 	common.OptionMap["StripeMinTopUp"] = strconv.Itoa(setting.StripeMinTopUp)
 	common.OptionMap["StripeApiSecret"] = setting.StripeApiSecret
 	common.OptionMap["StripeWebhookSecret"] = setting.StripeWebhookSecret
@@ -350,6 +354,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.TaskEnabled = boolValue
 		case "DataExportEnabled":
 			common.DataExportEnabled = boolValue
+		case "InvoiceEnabled":
+			setting.InvoiceEnabled = boolValue
 		case "DefaultCollapseSidebar":
 			common.DefaultCollapseSidebar = boolValue
 		case "MjNotifyEnabled":
@@ -433,6 +439,16 @@ func updateOptionMap(key string, value string) (err error) {
 		operation_setting.USDExchangeRate, _ = strconv.ParseFloat(value, 64)
 	case "MinTopUp":
 		operation_setting.MinTopUp, _ = strconv.Atoi(value)
+	case "InvoiceFeePercent":
+		setting.InvoiceFeePercent, _ = strconv.ParseFloat(value, 64)
+	case "InvoiceMinAmount":
+		setting.InvoiceMinAmount, _ = strconv.ParseFloat(value, 64)
+	case "InvoicePermissionMode":
+		if value == "all" {
+			setting.InvoicePermissionMode = "all"
+		} else {
+			setting.InvoicePermissionMode = "specified"
+		}
 	case "StripeApiSecret":
 		setting.StripeApiSecret = value
 	case "StripeWebhookSecret":

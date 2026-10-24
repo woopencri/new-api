@@ -271,6 +271,53 @@ export interface TopupRecord {
   complete_time?: number
   /** Payment status */
   status: TopupStatus
+  invoice_status?: InvoiceStatus
+  invoice_available?: boolean
+  invoice_fee_amount?: number
+  invoice_fee_quota?: number
+}
+
+export type InvoiceStatus = 'pending' | 'completed' | 'rejected'
+
+export interface InvoiceConfig {
+  enabled: boolean
+  fee_percent: number
+  min_amount: number
+  permission_mode: 'all' | 'specified'
+  can_apply: boolean
+  email: string
+}
+
+export interface InvoiceApplicationRequest {
+  topup_id: number
+  buyer_name: string
+  taxpayer_id: string
+  email: string
+}
+
+export interface InvoiceApplication {
+  id: number
+  user_id: number
+  topup_id: number
+  trade_no: string
+  buyer_name: string
+  taxpayer_id: string
+  email: string
+  amount: number
+  fee_percent: number
+  fee_amount: number
+  fee_quota: number
+  status: InvoiceStatus
+  create_time: number
+  complete_time?: number
+  remark?: string
+  user?: { id: number; username: string; email?: string }
+  top_up?: TopupRecord
+}
+
+export interface InvoiceApplicationsResponse {
+  items: InvoiceApplication[]
+  total: number
 }
 
 /**

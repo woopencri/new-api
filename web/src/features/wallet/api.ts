@@ -39,6 +39,10 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  InvoiceConfig,
+  InvoiceApplicationRequest,
+  InvoiceApplication,
+  InvoiceApplicationsResponse,
 } from './types'
 
 // ============================================================================
@@ -244,5 +248,51 @@ export async function completeOrder(
   request: CompleteOrderRequest
 ): Promise<ApiResponse> {
   const res = await api.post('/api/user/topup/complete', request)
+  return res.data
+}
+
+export async function getInvoiceConfig(): Promise<ApiResponse<InvoiceConfig>> {
+  const res = await api.get('/api/user/invoice/config')
+  return res.data
+}
+
+export async function createInvoiceApplication(
+  request: InvoiceApplicationRequest
+): Promise<ApiResponse<InvoiceApplication>> {
+  const res = await api.post('/api/user/invoice/applications', request)
+  return res.data
+}
+
+export async function getAdminInvoiceConfig(): Promise<
+  ApiResponse<InvoiceConfig>
+> {
+  const res = await api.get('/api/invoice/admin/config')
+  return res.data
+}
+
+export async function updateAdminInvoiceConfig(
+  request: Omit<InvoiceConfig, 'can_apply' | 'email'>
+): Promise<ApiResponse<InvoiceConfig>> {
+  const res = await api.put('/api/invoice/admin/config', request)
+  return res.data
+}
+
+export async function getAdminInvoiceApplications(
+  params: {
+    p?: number
+    page_size?: number
+    keyword?: string
+    status?: string
+  } = {}
+): Promise<ApiResponse<InvoiceApplicationsResponse>> {
+  const res = await api.get('/api/invoice/admin/applications', { params })
+  return res.data
+}
+
+export async function updateAdminInvoiceApplication(
+  id: number,
+  request: { status: string; remark?: string }
+): Promise<ApiResponse> {
+  const res = await api.put(`/api/invoice/admin/applications/${id}`, request)
   return res.data
 }

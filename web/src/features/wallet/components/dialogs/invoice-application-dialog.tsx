@@ -1,0 +1,168 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+
+import { Dialog } from '@/components/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+
+import { createInvoiceApplication } from '../../api'
+import type { TopupRecord } from '../../types'
+
+interface InvoiceApplicationDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  record: TopupRecord | null
+  defaultEmail: string
+  onSuccess: () => Promise<void> | void
+}
+
+export function InvoiceApplicationDialog({
+  open,
+  onOpenChange,
+  record,
+  defaultEmail,
+  onSuccess,
+}: InvoiceApplicationDialogProps) {
+  const { t } = useTranslation()
+  const [buyerName, setBuyerName] = useState('')
+  const [taxpayerId, setTaxpayerId] = useState('')
+  const [email, setEmail] = useState(defaultEmail)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setBuyerName('')
+      setTaxpayerId('')
+      setEmail(defaultEmail)
+    }
+  }, [open, defaultEmail])
+
+  const submit = async () => {
+    if (!record) return
+    if (!buyerName.trim() || !taxpayerId.trim() || !email.trim()) {
+      toast.error(t('Please complete the invoice information'))
+      return
+    }
+    setSubmitting(true)
+    try {
+      const response = await createInvoiceApplication({
+        topup_id: record.id,
+        buyer_name: buyerName,
+        taxpayer_id: taxpayerId,
+        email,
+      })
+      if (response.success === true || response.message === 'success') {
+        toast.success(t('Invoice application submitted'))
+        onOpenChange(false)
+        await onSuccess()
+      } else {
+        toast.error(
+          response.message || t('Failed to submit invoice application')
+        )
+      }
+    } catch {
+      toast.error(t('Failed to submit invoice application'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('Apply for invoice')}
+      description={t('The invoice amount is fixed to this paid order.')}
+      footer={
+        <>
+          <Button
+            variant='outline'
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+          >
+            {t('Cancel')}
+          </Button>
+          <Button onClick={submit} disabled={submitting || !record}>
+            {submitting ? t('Submitting...') : t('Submit application')}
+          </Button>
+        </>
+      }
+    >
+      {record ? (
+        <div className='space-y-4'>
+          <div className='grid grid-cols-2 gap-3 rounded-md border p-3 text-sm'>
+            <div>
+              <div className='text-muted-foreground'>{t('Order number')}</div>
+              <div className='font-medium'>{record.trade_no}</div>
+            </div>
+            <div>
+              <div className='text-muted-foreground'>{t('Invoice amount')}</div>
+              <div className='font-medium'>{record.money.toFixed(2)}</div>
+            </div>
+            <div>
+              <div className='text-muted-foreground'>{t('Handling fee')}</div>
+              <div className='font-medium'>
+                {(record.invoice_fee_amount ?? 0).toFixed(2)}
+              </div>
+            </div>
+            <div>
+              <div className='text-muted-foreground'>
+                {t('Balance deduction')}
+              </div>
+              <div className='font-medium'>{record.invoice_fee_quota ?? 0}</div>
+            </div>
+          </div>
+          <div className='space-y-2'>
+            <Label htmlFor='invoice-buyer-name'>{t('Buyer name')}</Label>
+            <Input
+              id='invoice-buyer-name'
+              value={buyerName}
+              onChange={(event) => setBuyerName(event.target.value)}
+            />
+          </div>
+          <div className='space-y-2'>
+            <Label htmlFor='invoice-taxpayer-id'>
+              {t('Taxpayer identification number')}
+            </Label>
+            <Input
+              id='invoice-taxpayer-id'
+              value={taxpayerId}
+              onChange={(event) => setTaxpayerId(event.target.value)}
+            />
+          </div>
+          <div className='space-y-2'>
+            <Label htmlFor='invoice-email'>
+              {t('Invoice receiving email')}
+            </Label>
+            <Input
+              id='invoice-email'
+              type='email'
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </div>
+        </div>
+      ) : null}
+    </Dialog>
+  )
+}
