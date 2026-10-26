@@ -123,6 +123,13 @@ export function BillingHistoryDialog({
 
   const totalPages = Math.ceil(total / pageSize)
   const invoiceEmail = invoiceConfigResponse?.data?.email || currentUserEmail
+  const invoiceFeePercent =
+    invoiceConfigResponse?.data?.fee_percent ??
+    (invoiceRecord &&
+    invoiceRecord.money > 0 &&
+    invoiceRecord.invoice_fee_amount !== undefined
+      ? (invoiceRecord.invoice_fee_amount / invoiceRecord.money) * 100
+      : 0)
 
   const handleConfirmComplete = async () => {
     if (confirmTradeNo) {
@@ -417,6 +424,7 @@ export function BillingHistoryDialog({
         onOpenChange={(nextOpen) => !nextOpen && setInvoiceRecord(null)}
         record={invoiceRecord}
         defaultEmail={invoiceEmail}
+        feePercent={invoiceFeePercent}
         onSuccess={async () => {
           setInvoiceRecord(null)
           await Promise.all([fetchBillingHistory(), onBalanceChange?.()])

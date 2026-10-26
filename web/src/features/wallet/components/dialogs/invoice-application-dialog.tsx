@@ -34,6 +34,7 @@ interface InvoiceApplicationDialogProps {
   onOpenChange: (open: boolean) => void
   record: TopupRecord | null
   defaultEmail: string
+  feePercent: number
   onSuccess: () => Promise<void> | void
 }
 
@@ -42,6 +43,7 @@ export function InvoiceApplicationDialog({
   onOpenChange,
   record,
   defaultEmail,
+  feePercent,
   onSuccess,
 }: InvoiceApplicationDialogProps) {
   const { t } = useTranslation()
@@ -49,6 +51,9 @@ export function InvoiceApplicationDialog({
   const [taxpayerId, setTaxpayerId] = useState('')
   const [email, setEmail] = useState(defaultEmail)
   const [submitting, setSubmitting] = useState(false)
+  const displayedFeePercent = Number.isFinite(feePercent)
+    ? Number(feePercent.toFixed(2))
+    : 0
 
   useEffect(() => {
     if (open) {
@@ -121,10 +126,10 @@ export function InvoiceApplicationDialog({
               <div className='font-medium'>{record.money.toFixed(2)}</div>
             </div>
             <div>
-              <div className='text-muted-foreground'>{t('Handling fee')}</div>
-              <div className='font-medium'>
-                {(record.invoice_fee_amount ?? 0).toFixed(2)}
+              <div className='text-muted-foreground'>
+                {t('Handling fee percentage')}
               </div>
+              <div className='font-medium'>{displayedFeePercent}%</div>
             </div>
             <div>
               <div className='text-muted-foreground'>

@@ -114,10 +114,12 @@ test('invoice quote displays the monetary balance deduction and submits editable
           invoice_fee_quota: 240000,
         }}
         defaultEmail='account@example.com'
+        feePercent={6}
         onSuccess={finish}
       />
     )
   })
+  assert.match(document.body.textContent ?? '', /Handling fee percentage6%/)
   assert.match(document.body.textContent ?? '', /Balance deduction\$0\.48/)
   assert.match(document.body.textContent ?? '', /1–3 business days/)
   assert.match(
