@@ -351,7 +351,7 @@ func TestInvoiceRefundRollsBackWhenStatusWriteFails(t *testing.T) {
 
 func TestInvoiceRefundRejectsBalanceOverflow(t *testing.T) {
 	setupInvoiceDB(t)
-	user := User{Username: "invoice-refund-overflow", Quota: math.MaxInt32}
+	user := User{Username: "invoice-refund-overflow", Quota: int(^uint(0) >> 1)}
 	require.NoError(t, DB.Create(&user).Error)
 	order := TopUp{UserId: user.Id, TradeNo: "refund-overflow", Status: common.TopUpStatusSuccess}
 	require.NoError(t, DB.Create(&order).Error)
@@ -360,7 +360,22 @@ func TestInvoiceRefundRejectsBalanceOverflow(t *testing.T) {
 	_, err := UpdateInvoiceStatus(application.Id, InvoiceStatusClosed, "", application.Version)
 	require.ErrorContains(t, err, "超出余额范围")
 	require.NoError(t, DB.First(&user, user.Id).Error)
-	assert.Equal(t, math.MaxInt32, user.Quota)
+	assert.Equal(t, int(^uint(0)>>1), user.Quota)
+}
+
+func TestInvoiceRefundAllowsSQLiteQuotaAboveLegacyInt32Limit(t *testing.T) {
+	setupInvoiceDB(t)
+	user := User{Username: "invoice-refund-sqlite-large-quota", Quota: common.MaxQuota + 100, AuthVersion: 1}
+	require.NoError(t, DB.Create(&user).Error)
+	order := TopUp{UserId: user.Id, TradeNo: "refund-sqlite-large-quota", Status: common.TopUpStatusSuccess}
+	require.NoError(t, DB.Create(&order).Error)
+	application := InvoiceApplication{UserId: user.Id, TopUpId: order.Id, FeeQuota: 1, Status: InvoiceStatusPending}
+	require.NoError(t, DB.Create(&application).Error)
+	updated, err := UpdateInvoiceStatus(application.Id, InvoiceStatusClosed, "", application.Version)
+	require.NoError(t, err)
+	assert.True(t, updated.FeeRefunded)
+	require.NoError(t, DB.First(&user, user.Id).Error)
+	assert.Equal(t, common.MaxQuota+101, user.Quota)
 }
 
 func TestConcurrentInvoiceCloseRefundsFeeOnlyOnce(t *testing.T) {

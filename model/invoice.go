@@ -150,20 +150,34 @@ func refundInvoiceFee(tx *gorm.DB, user *User, application *InvoiceApplication) 
 		return 0, nil
 	}
 	quota := application.FeeQuota
-	if quota < 0 || quota > math.MaxInt32 || user.Quota > math.MaxInt32-quota {
+	if quota < 0 || quota > common.MaxQuota {
 		return 0, errors.New("开票手续费退款超出余额范围")
 	}
-	if quota > 0 {
-		result := tx.Model(&User{}).Where("id = ? AND quota <= ?", user.Id, math.MaxInt32-quota).
-			Update("quota", gorm.Expr("quota + ?", quota))
-		if result.Error != nil {
-			return 0, result.Error
-		}
-		if result.RowsAffected != 1 {
-			return 0, errors.New("开票手续费退款失败，请刷新后重试")
-		}
-		user.Quota += quota
+	if quota == 0 {
+		application.FeeRefunded = true
+		return 0, nil
 	}
+
+	// SQLite stores INTEGER values as signed 64-bit values, while MySQL and
+	// PostgreSQL use the 32-bit quota column. Use the actual database limit so
+	// valid SQLite accounts above the legacy int32 range can still be refunded.
+	maxQuota := int64(common.MaxQuota)
+	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+		maxQuota = int64(^uint(0) >> 1)
+	}
+	quota64 := int64(quota)
+	if int64(user.Quota) > maxQuota-quota64 {
+		return 0, errors.New("开票手续费退款超出余额范围")
+	}
+	result := tx.Model(&User{}).Where("id = ? AND quota <= ?", user.Id, maxQuota-quota64).
+		Update("quota", gorm.Expr("quota + ?", quota))
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	if result.RowsAffected != 1 {
+		return 0, errors.New("开票手续费退款失败，请刷新后重试")
+	}
+	user.Quota += quota
 	application.FeeRefunded = true
 	return quota, nil
 }
