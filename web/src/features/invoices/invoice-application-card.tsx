@@ -19,6 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -36,11 +46,13 @@ import type { InvoiceApplication } from '../wallet/types'
 interface InvoiceApplicationCardProps {
   application: InvoiceApplication
   onSave: (application: InvoiceApplication, status: string) => Promise<void>
+  onDelete: (application: InvoiceApplication) => Promise<void>
 }
 
 export function InvoiceApplicationCard({
   application,
   onSave,
+  onDelete,
 }: InvoiceApplicationCardProps) {
   const { t } = useTranslation()
   const closed =
@@ -48,6 +60,8 @@ export function InvoiceApplicationCard({
   const savedStatus = closed ? 'closed' : application.status
   const [draftStatus, setDraftStatus] = useState(savedStatus)
   const [saving, setSaving] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const { copyToClipboard } = useCopyToClipboard()
   const statusOptions = [
     { value: 'pending', label: t('Pending') },
@@ -65,6 +79,17 @@ export function InvoiceApplicationCard({
       await onSave(application, draftStatus)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const remove = async () => {
+    if (deleting) return
+    setDeleting(true)
+    try {
+      await onDelete(application)
+      setDeleteDialogOpen(false)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -160,7 +185,41 @@ export function InvoiceApplicationCard({
         >
           {t('Copy invoice information')}
         </Button>
+        {(savedStatus === 'completed' || closed) && (
+          <Button
+            variant='destructive'
+            onClick={() => setDeleteDialogOpen(true)}
+            disabled={saving || deleting}
+          >
+            {t('Delete application')}
+          </Button>
+        )}
       </div>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t('Delete invoice application?')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                'This only hides the completed or closed invoice application from the admin list. The user order record stays unchanged.'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>
+              {t('Cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void remove()}
+              disabled={deleting}
+            >
+              {deleting ? t('Deleting...') : t('Confirm delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </article>
   )
 }

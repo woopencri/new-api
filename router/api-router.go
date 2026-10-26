@@ -159,6 +159,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			invoiceAdminRoute.GET("/applications", controller.GetAdminInvoiceApplications)
 			invoiceAdminRoute.PUT("/applications/:id", controller.UpdateAdminInvoiceApplication)
+			invoiceAdminRoute.DELETE("/applications/:id", controller.DeleteAdminInvoiceApplication)
 			invoiceAdminRoute.GET("/config", controller.GetAdminInvoiceConfig)
 			invoiceAdminRoute.PUT("/config", controller.UpdateAdminInvoiceConfig)
 		}

@@ -22,6 +22,28 @@ func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
+	service.RegisterSystemTaskHandler(invoiceCleanupHandler{})
+}
+
+// invoiceCleanupHandler hides completed or closed invoice applications after
+// their orders leave the user billing history window.
+type invoiceCleanupHandler struct{}
+
+func (invoiceCleanupHandler) Type() string { return model.SystemTaskTypeInvoiceCleanup }
+
+func (invoiceCleanupHandler) Enabled() bool { return true }
+
+func (invoiceCleanupHandler) Interval() time.Duration { return time.Hour }
+
+func (invoiceCleanupHandler) NewPayload() any { return nil }
+
+func (invoiceCleanupHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	hidden, err := model.HideExpiredInvoiceApplications(ctx)
+	if err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
+		return
+	}
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, map[string]int64{"hidden_count": hidden}, nil)
 }
 
 // channelTestHandler runs the scheduled "test all channels" job. Enablement and

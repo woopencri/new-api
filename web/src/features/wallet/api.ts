@@ -296,3 +296,13 @@ export async function updateAdminInvoiceApplication(
   const res = await api.put(`/api/invoice/admin/applications/${id}`, request)
   return res.data
 }
+
+export async function deleteAdminInvoiceApplication(
+  id: number,
+  version: number
+): Promise<ApiResponse> {
+  const res = await api.delete(`/api/invoice/admin/applications/${id}`, {
+    data: { version },
+  })
+  return res.data
+}

@@ -26,7 +26,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -41,7 +40,6 @@ type invoiceConfigRequest struct {
 	Enabled        bool    `json:"enabled"`
 	FeePercent     float64 `json:"fee_percent"`
 	MinAmount      float64 `json:"min_amount"`
-	MaxAgeDays     *int    `json:"max_age_days"`
 	PermissionMode string  `json:"permission_mode"`
 }
 
@@ -57,7 +55,6 @@ func invoiceConfigResponse(user *model.User) gin.H {
 		"enabled":         config.Enabled,
 		"fee_percent":     config.FeePercent,
 		"min_amount":      config.MinAmount,
-		"max_age_days":    config.MaxAgeDays,
 		"permission_mode": config.PermissionMode,
 		"can_apply":       user != nil && config.Enabled && (config.PermissionMode == "all" || user.InvoiceEnabled),
 		"email": func() string {
@@ -134,6 +131,28 @@ func UpdateAdminInvoiceApplication(c *gin.Context) {
 	common.ApiSuccess(c, application)
 }
 
+type deleteInvoiceApplicationRequest struct {
+	Version *int `json:"version"`
+}
+
+func DeleteAdminInvoiceApplication(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	var req deleteInvoiceApplicationRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil || req.Version == nil || *req.Version < 0 {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	if err := model.DeleteInvoiceApplication(id, *req.Version); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
 func GetAdminInvoiceConfig(c *gin.Context) {
 	common.ApiSuccess(c, invoiceConfigResponse(nil))
 }
@@ -152,18 +171,11 @@ func UpdateAdminInvoiceConfig(c *gin.Context) {
 		common.ApiErrorMsg(c, "开票权限选项无效")
 		return
 	}
-	if req.MaxAgeDays != nil && (*req.MaxAgeDays < 0 || *req.MaxAgeDays > setting.MaxInvoiceApplicationDays) {
-		common.ApiErrorMsg(c, "开票申请期限必须为 0 到 36500 之间的整数天数")
-		return
-	}
 	values := map[string]string{
 		"InvoiceEnabled":        strconv.FormatBool(req.Enabled),
 		"InvoiceFeePercent":     strconv.FormatFloat(req.FeePercent, 'f', -1, 64),
 		"InvoiceMinAmount":      strconv.FormatFloat(req.MinAmount, 'f', -1, 64),
 		"InvoicePermissionMode": req.PermissionMode,
-	}
-	if req.MaxAgeDays != nil {
-		values["InvoiceMaxAgeDays"] = strconv.Itoa(*req.MaxAgeDays)
 	}
 	if err := model.UpdateOptionsBulk(values); err != nil {
 		common.ApiError(c, err)

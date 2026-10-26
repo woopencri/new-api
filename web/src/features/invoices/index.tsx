@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -36,6 +37,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 
 import {
+  deleteAdminInvoiceApplication,
   getAdminInvoiceApplications,
   getAdminInvoiceConfig,
   updateAdminInvoiceApplication,
@@ -48,7 +50,6 @@ const defaultConfig: InvoiceConfig = {
   enabled: false,
   fee_percent: 0,
   min_amount: 0,
-  max_age_days: 0,
   permission_mode: 'specified',
   can_apply: false,
   email: '',
@@ -62,6 +63,9 @@ export function Invoices() {
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
 
   const configQuery = useQuery({
     queryKey: ['admin-invoice-config'],
@@ -80,10 +84,12 @@ export function Invoices() {
       const response = await getAdminInvoiceApplications({
         keyword,
         status,
-        page_size: 100,
+        p: page,
+        page_size: pageSize,
       })
       if (response.success && response.data) {
         setApplications(response.data.items || [])
+        setTotal(response.data.total || 0)
       } else {
         toast.error(
           response.message || t('Failed to load invoice applications')
@@ -94,28 +100,19 @@ export function Invoices() {
     } finally {
       setLoading(false)
     }
-  }, [keyword, status, t])
+  }, [keyword, page, pageSize, status, t])
 
   useEffect(() => {
     void loadApplications()
   }, [loadApplications])
 
   const saveConfig = async () => {
-    if (
-      !Number.isInteger(config.max_age_days) ||
-      config.max_age_days < 0 ||
-      config.max_age_days > 36500
-    ) {
-      toast.error(t('Enter a whole number of days between 0 and 36500.'))
-      return
-    }
     setSaving(true)
     try {
       const response = await updateAdminInvoiceConfig({
         enabled: config.enabled,
         fee_percent: Number(config.fee_percent),
         min_amount: Number(config.min_amount),
-        max_age_days: config.max_age_days,
         permission_mode: config.permission_mode,
       })
       if (response.success) {
@@ -159,6 +156,29 @@ export function Invoices() {
     }
   }
 
+  const deleteApplication = async (application: InvoiceApplication) => {
+    try {
+      const response = await deleteAdminInvoiceApplication(
+        application.id,
+        application.version
+      )
+      if (!response.success) {
+        toast.error(
+          response.message || t('Failed to delete invoice application')
+        )
+        return
+      }
+      toast.success(t('Invoice application deleted'))
+      const shouldMoveBack = applications.length === 1 && page > 1
+      setPage((current) => (shouldMoveBack ? current - 1 : current))
+      if (!shouldMoveBack) {
+        await loadApplications()
+      }
+    } catch {
+      toast.error(t('Failed to delete invoice application'))
+    }
+  }
+
   let applicationsContent
   if (loading) {
     applicationsContent = (
@@ -178,6 +198,7 @@ export function Invoices() {
             key={`${application.id}:${application.version}`}
             application={application}
             onSave={updateStatus}
+            onDelete={deleteApplication}
           />
         ))}
       </div>
@@ -245,30 +266,6 @@ export function Invoices() {
                 </p>
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='invoice-max-age-days'>
-                  {t('Invoice application window (days)')}
-                </Label>
-                <Input
-                  id='invoice-max-age-days'
-                  type='number'
-                  min='0'
-                  max='36500'
-                  step='1'
-                  value={config.max_age_days}
-                  onChange={(event) =>
-                    setConfig({
-                      ...config,
-                      max_age_days: Number(event.target.value),
-                    })
-                  }
-                />
-                <p className='text-muted-foreground text-xs'>
-                  {t(
-                    'Counted from payment completion. Set to 0 for no time limit. Expired orders cannot be invoiced.'
-                  )}
-                </p>
-              </div>
-              <div className='space-y-2'>
                 <Label>{t('Invoice permission')}</Label>
                 <Select
                   items={[
@@ -313,7 +310,10 @@ export function Invoices() {
               <div className='flex flex-col gap-2 sm:flex-row'>
                 <Input
                   value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
+                  onChange={(event) => {
+                    setKeyword(event.target.value)
+                    setPage(1)
+                  }}
                   placeholder={t('Search invoice applications')}
                 />
                 <Select
@@ -324,7 +324,10 @@ export function Invoices() {
                     { value: 'closed', label: t('Close application') },
                   ]}
                   value={status}
-                  onValueChange={(value) => setStatus(value ?? '')}
+                  onValueChange={(value) => {
+                    setStatus(value ?? '')
+                    setPage(1)
+                  }}
                 >
                   <SelectTrigger className='sm:w-44'>
                     <SelectValue placeholder={t('All statuses')} />
@@ -346,6 +349,60 @@ export function Invoices() {
                 </Button>
               </div>
               {applicationsContent}
+              {total > 0 && (
+                <div className='flex flex-col items-center justify-between gap-3 border-t pt-4 sm:flex-row'>
+                  <div className='text-muted-foreground text-sm'>
+                    {t('Showing')} {(page - 1) * pageSize + 1}-
+                    {Math.min(page * pageSize, total)} {t('of')} {total}
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <Select
+                      items={[
+                        { value: '10', label: t('10 / page') },
+                        { value: '20', label: t('20 / page') },
+                        { value: '50', label: t('50 / page') },
+                      ]}
+                      value={String(pageSize)}
+                      onValueChange={(value) => {
+                        if (value) {
+                          setPageSize(Number(value))
+                          setPage(1)
+                        }
+                      }}
+                    >
+                      <SelectTrigger className='w-24'>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectItem value='10'>{t('10 / page')}</SelectItem>
+                        <SelectItem value='20'>{t('20 / page')}</SelectItem>
+                        <SelectItem value='50'>{t('50 / page')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant='outline'
+                      size='icon'
+                      onClick={() => setPage((current) => current - 1)}
+                      disabled={page <= 1}
+                      aria-label={t('Go to previous page')}
+                    >
+                      <ChevronLeft className='size-4' />
+                    </Button>
+                    <span className='text-sm'>
+                      {page} / {Math.max(1, Math.ceil(total / pageSize))}
+                    </span>
+                    <Button
+                      variant='outline'
+                      size='icon'
+                      onClick={() => setPage((current) => current + 1)}
+                      disabled={page >= Math.ceil(total / pageSize)}
+                      aria-label={t('Go to next page')}
+                    >
+                      <ChevronRight className='size-4' />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

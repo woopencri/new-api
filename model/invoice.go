@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -50,6 +51,7 @@ type InvoiceApplication struct {
 	FeeAmount    float64 `json:"fee_amount"`
 	FeeQuota     int     `json:"fee_quota"`
 	FeeRefunded  bool    `json:"fee_refunded"`
+	AdminHidden  bool    `json:"-" gorm:"index"`
 	Version      int     `json:"version" gorm:"default:0"`
 	Status       string  `json:"status" gorm:"type:varchar(32);index"`
 	CreateTime   int64   `json:"create_time"`
@@ -64,7 +66,6 @@ type InvoiceConfig struct {
 	Enabled        bool    `json:"enabled"`
 	FeePercent     float64 `json:"fee_percent"`
 	MinAmount      float64 `json:"min_amount"`
-	MaxAgeDays     int     `json:"max_age_days"`
 	PermissionMode string  `json:"permission_mode"`
 }
 
@@ -81,7 +82,6 @@ func GetInvoiceConfig() InvoiceConfig {
 		Enabled:        setting.InvoiceEnabled,
 		FeePercent:     fee,
 		MinAmount:      minAmount,
-		MaxAgeDays:     setting.InvoiceMaxAgeDays,
 		PermissionMode: mode,
 	}
 }
@@ -97,17 +97,9 @@ func UserCanApplyInvoice(user *User, topUp *TopUp) bool {
 	if config.PermissionMode != "all" && !user.InvoiceEnabled {
 		return false
 	}
-	if config.MaxAgeDays < 0 || config.MaxAgeDays > setting.MaxInvoiceApplicationDays {
+	// Keep invoice eligibility aligned with the user billing history window.
+	if topUp.CreateTime < topUpQueryCutoff() {
 		return false
-	}
-	if config.MaxAgeDays > 0 {
-		paidAt := topUp.CompleteTime
-		if paidAt <= 0 {
-			paidAt = topUp.CreateTime
-		}
-		if paidAt <= 0 || paidAt < common.GetTimestamp()-int64(config.MaxAgeDays)*24*60*60 {
-			return false
-		}
 	}
 	return true
 }
@@ -234,7 +226,7 @@ func CreateInvoiceApplication(userId int, topUpId int, buyerName string, taxpaye
 			UserId: userId, TopUpId: topUpId, TradeNo: topUp.TradeNo,
 			BuyerName: buyerName, TaxpayerId: taxpayerId, Email: email,
 			Amount: topUp.Money, FeePercent: GetInvoiceConfig().FeePercent,
-			FeeAmount: feeAmount, FeeQuota: feeQuota, Status: InvoiceStatusPending,
+			FeeAmount: feeAmount, FeeQuota: feeQuota, Status: InvoiceStatusPending, AdminHidden: false,
 			CreateTime: common.GetTimestamp(),
 		}
 		if existing.Id == 0 {
@@ -243,7 +235,7 @@ func CreateInvoiceApplication(userId int, topUpId int, buyerName string, taxpaye
 		// Keep one application per order while fencing off stale administrator
 		// saves from earlier applications. Closed-at/refund state resets here.
 		result := tx.Model(&InvoiceApplication{}).Where("id = ? AND version = ?", existing.Id, existing.Version).
-			Select("buyer_name", "taxpayer_id", "email", "amount", "fee_percent", "fee_amount", "fee_quota", "fee_refunded", "status", "create_time", "complete_time", "remark", "version").Updates(&application)
+			Select("buyer_name", "taxpayer_id", "email", "amount", "fee_percent", "fee_amount", "fee_quota", "fee_refunded", "admin_hidden", "status", "create_time", "complete_time", "remark", "version").Updates(&application)
 		if result.Error != nil {
 			return result.Error
 		}
@@ -289,7 +281,7 @@ func GetUserInvoiceByTopUpID(userId int, topUpId int) (*InvoiceApplication, erro
 }
 
 func ListInvoiceApplications(pageInfo *common.PageInfo, keyword string, status string) ([]*InvoiceApplication, int64, error) {
-	query := DB.Model(&InvoiceApplication{})
+	query := DB.Model(&InvoiceApplication{}).Where("admin_hidden = ?", false)
 	if keyword != "" {
 		pattern := "%" + strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(keyword, "!", "!!"), "%", "!%"), "_", "!_") + "%"
 		query = query.Where("trade_no LIKE ? ESCAPE '!' OR buyer_name LIKE ? ESCAPE '!' OR taxpayer_id LIKE ? ESCAPE '!' OR email LIKE ? ESCAPE '!'", pattern, pattern, pattern, pattern)
@@ -385,4 +377,63 @@ func UpdateInvoiceStatus(id int, status string, remark string, version int) (*In
 	}
 	RecordLog(application.UserId, LogTypeSystem, fmt.Sprintf("更新开票申请，订单号：%s，版本：%d，状态：%s，退还手续费额度：%d", application.TradeNo, application.Version, application.Status, refunded))
 	return &application, nil
+}
+
+// DeleteInvoiceApplication hides a completed or closed application from the
+// administrator list. The underlying application remains available to the user
+// so their order status and re-application behavior do not change.
+func DeleteInvoiceApplication(id int, version int) error {
+	if id <= 0 || version < 0 {
+		return errors.New("开票申请参数无效")
+	}
+	var application InvoiceApplication
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockForUpdate(tx).First(&application, id).Error; err != nil {
+			return err
+		}
+		if application.Version != version {
+			return errors.New("开票申请已更新，请刷新后重试")
+		}
+		if application.Status != InvoiceStatusCompleted && !IsInvoiceApplicationClosed(application.Status) {
+			return errors.New("只有已完成或已关闭的开票申请可以删除")
+		}
+		result := tx.Model(&InvoiceApplication{}).
+			Where("id = ? AND version = ? AND admin_hidden = ?", id, version, false).
+			Updates(map[string]any{
+				"admin_hidden": true,
+				"version":      gorm.Expr("version + 1"),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("开票申请已更新，请刷新后重试")
+		}
+		application.AdminHidden = true
+		application.Version++
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	RecordLog(application.UserId, LogTypeSystem, fmt.Sprintf("隐藏开票申请管理记录，订单号：%s，状态：%s", application.TradeNo, application.Status))
+	return nil
+}
+
+// HideExpiredInvoiceApplications hides completed or closed applications whose
+// orders have left the same 30-day window used by the user billing history.
+// It deliberately keeps pending applications visible for administrator action.
+func HideExpiredInvoiceApplications(ctx context.Context) (int64, error) {
+	cutoff := topUpQueryCutoff()
+	result := DB.WithContext(ctx).Model(&InvoiceApplication{}).
+		Where("admin_hidden = ? AND status IN ? AND top_up_id IN (?)", false, []string{InvoiceStatusCompleted, InvoiceStatusClosed, InvoiceStatusRejected},
+			DB.Model(&TopUp{}).Select("id").Where("create_time < ?", cutoff)).
+		Updates(map[string]any{
+			"admin_hidden": true,
+			"version":      gorm.Expr("version + 1"),
+		})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
 }

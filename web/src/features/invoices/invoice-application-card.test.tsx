@@ -99,7 +99,10 @@ async function renderCard(
   onSave: (
     application: import('../wallet/types').InvoiceApplication,
     status: string
-  ) => Promise<void>
+  ) => Promise<void>,
+  onDelete: (
+    application: import('../wallet/types').InvoiceApplication
+  ) => Promise<void> = async () => undefined
 ) {
   await i18next.changeLanguage('zh')
   const container = document.createElement('div')
@@ -107,7 +110,11 @@ async function renderCard(
   root = createRoot(container)
   await act(async () =>
     root?.render(
-      <InvoiceApplicationCard application={application} onSave={onSave} />
+      <InvoiceApplicationCard
+        application={application}
+        onSave={onSave}
+        onDelete={onDelete}
+      />
     )
   )
 }
@@ -182,6 +189,7 @@ test('legacy rejected applications display closed and allow saving their missing
         onSave={async (_application, status) => {
           saved.push(status)
         }}
+        onDelete={async () => undefined}
       />
     )
   )
@@ -216,7 +224,6 @@ test('invoice page uses Chinese labels for permission, status filter, and saved 
         enabled: true,
         fee_percent: 6,
         min_amount: 0,
-        max_age_days: 7,
         permission_mode: 'specified',
       }
     } else {
@@ -248,7 +255,7 @@ test('invoice page uses Chinese labels for permission, status filter, and saved 
     ]
     assert.deepEqual(
       triggers.map((trigger) => trigger.textContent),
-      ['指定用户', '全部状态', '待确认']
+      ['指定用户', '全部状态', '待确认', '10 条/页']
     )
   } finally {
     await act(async () => root?.unmount())

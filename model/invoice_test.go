@@ -19,7 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 package model
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 
@@ -38,14 +40,12 @@ func setupInvoiceTest(t *testing.T) {
 	setting.InvoiceEnabled = true
 	setting.InvoiceFeePercent = 6
 	setting.InvoiceMinAmount = 0
-	setting.InvoiceMaxAgeDays = 0
 	setting.InvoicePermissionMode = "specified"
 	common.QuotaPerUnit = 500000
 	t.Cleanup(func() {
 		setting.InvoiceEnabled = previousConfig.Enabled
 		setting.InvoiceFeePercent = previousConfig.FeePercent
 		setting.InvoiceMinAmount = previousConfig.MinAmount
-		setting.InvoiceMaxAgeDays = previousConfig.MaxAgeDays
 		setting.InvoicePermissionMode = previousConfig.PermissionMode
 		common.QuotaPerUnit = previousQuotaPerUnit
 	})
@@ -129,10 +129,9 @@ func TestCalculateInvoiceFeeRejectsUnsafeValues(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestInvoiceEligibilityUsesPaymentCompletionAndPermissions(t *testing.T) {
+func TestInvoiceEligibilityUsesBillingHistoryWindowAndPermissions(t *testing.T) {
 	setupInvoiceTest(t)
 	setting.InvoiceMinAmount = 10
-	setting.InvoiceMaxAgeDays = 7
 	now := common.GetTimestamp()
 	user := &User{InvoiceEnabled: true}
 	for _, tc := range []struct {
@@ -140,29 +139,23 @@ func TestInvoiceEligibilityUsesPaymentCompletionAndPermissions(t *testing.T) {
 		order   TopUp
 		allowed bool
 	}{
-		{"pending", TopUp{Status: common.TopUpStatusPending, Money: 20, CompleteTime: now}, false},
-		{"equal minimum", TopUp{Status: common.TopUpStatusSuccess, Money: 10, CompleteTime: now}, false},
-		{"paid recently despite old creation", TopUp{Status: common.TopUpStatusSuccess, Money: 20, CreateTime: now - 60*86400, CompleteTime: now - 86400}, true},
-		{"within deadline", TopUp{Status: common.TopUpStatusSuccess, Money: 20, CompleteTime: now - 7*86400 + 60}, true},
-		{"just expired", TopUp{Status: common.TopUpStatusSuccess, Money: 20, CompleteTime: now - 7*86400 - 60}, false},
-		{"expired payment", TopUp{Status: common.TopUpStatusSuccess, Money: 20, CompleteTime: now - 8*86400}, false},
-		{"legacy recent order", TopUp{Status: common.TopUpStatusSuccess, Money: 20, CreateTime: now - 86400}, true},
-		{"legacy expired order", TopUp{Status: common.TopUpStatusSuccess, Money: 20, CreateTime: now - 8*86400}, false},
-		{"missing timestamps", TopUp{Status: common.TopUpStatusSuccess, Money: 20}, false},
+		{"pending", TopUp{Status: common.TopUpStatusPending, Money: 20, CreateTime: now}, false},
+		{"equal minimum", TopUp{Status: common.TopUpStatusSuccess, Money: 10, CreateTime: now}, false},
+		{"recent order", TopUp{Status: common.TopUpStatusSuccess, Money: 20, CreateTime: now - 29*86400}, true},
+		{"just outside billing window", TopUp{Status: common.TopUpStatusSuccess, Money: 20, CreateTime: now - 31*86400}, false},
+		{"completion time does not extend window", TopUp{Status: common.TopUpStatusSuccess, Money: 20, CreateTime: now - 31*86400, CompleteTime: now}, false},
+		{"missing creation timestamp", TopUp{Status: common.TopUpStatusSuccess, Money: 20}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.allowed, UserCanApplyInvoice(user, &tc.order))
 		})
 	}
-	order := &TopUp{Status: common.TopUpStatusSuccess, Money: 20, CompleteTime: now - 100*86400}
-	setting.InvoiceMaxAgeDays = 0
-	assert.True(t, UserCanApplyInvoice(user, order))
 	user.InvoiceEnabled = false
-	assert.False(t, UserCanApplyInvoice(user, order))
+	assert.False(t, UserCanApplyInvoice(user, &TopUp{Status: common.TopUpStatusSuccess, Money: 20, CreateTime: now}))
 	setting.InvoicePermissionMode = "all"
-	assert.True(t, UserCanApplyInvoice(user, order))
+	assert.True(t, UserCanApplyInvoice(user, &TopUp{Status: common.TopUpStatusSuccess, Money: 20, CreateTime: now}))
 	setting.InvoiceEnabled = false
-	assert.False(t, UserCanApplyInvoice(user, order))
+	assert.False(t, UserCanApplyInvoice(user, &TopUp{Status: common.TopUpStatusSuccess, Money: 20, CreateTime: now}))
 }
 
 func TestInvoiceApplicationDebitsDatabaseAndCacheOnlyOnce(t *testing.T) {
@@ -171,7 +164,7 @@ func TestInvoiceApplicationDebitsDatabaseAndCacheOnlyOnce(t *testing.T) {
 	user := User{Username: "invoice-user", InvoiceEnabled: true, Quota: 1000000, AuthVersion: 1}
 	require.NoError(t, DB.Create(&user).Error)
 	require.NoError(t, populateUserCache(user))
-	order := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "invoice-paid", Status: common.TopUpStatusSuccess}
+	order := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "invoice-paid", Status: common.TopUpStatusSuccess, CreateTime: common.GetTimestamp()}
 	require.NoError(t, DB.Create(&order).Error)
 	application, err := CreateInvoiceApplication(user.Id, order.Id, "Buyer", "Tax-ID", "invoice@example.com")
 	require.NoError(t, err)
@@ -203,8 +196,6 @@ func TestInvoiceApplicationFailureLeavesBalanceUntouched(t *testing.T) {
 				user.Quota = 299999
 				require.NoError(t, DB.Model(&user).Update("quota", user.Quota).Error)
 			case "expired":
-				setting.InvoiceMaxAgeDays = 7
-				order.CompleteTime -= 8 * 86400
 			case "another user":
 				order.UserId = user.Id + 1
 			case "insert failure":
@@ -233,7 +224,7 @@ func TestInvoiceCloseRefundsExactChargeAndAllowsFreshApplication(t *testing.T) {
 	user := User{Username: "invoice-close", InvoiceEnabled: true, Quota: 1000000, AuthVersion: 1}
 	require.NoError(t, DB.Create(&user).Error)
 	require.NoError(t, populateUserCache(user))
-	order := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "close-order", Status: common.TopUpStatusSuccess}
+	order := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "close-order", Status: common.TopUpStatusSuccess, CreateTime: common.GetTimestamp()}
 	require.NoError(t, DB.Create(&order).Error)
 	application, err := CreateInvoiceApplication(user.Id, order.Id, "Original buyer", "Original tax ID", "original@example.com")
 	require.NoError(t, err)
@@ -302,7 +293,7 @@ func TestLegacyRejectedInvoiceCanBeClosedOrResubmittedWithoutLosingRefund(t *tes
 			setupInvoiceDB(t)
 			user := User{Username: "legacy-invoice", InvoiceEnabled: true, Quota: 999999}
 			require.NoError(t, DB.Create(&user).Error)
-			order := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "legacy-order", Status: common.TopUpStatusSuccess}
+			order := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "legacy-order", Status: common.TopUpStatusSuccess, CreateTime: common.GetTimestamp()}
 			require.NoError(t, DB.Create(&order).Error)
 			legacy := InvoiceApplication{UserId: user.Id, TopUpId: order.Id, TradeNo: order.TradeNo, FeeQuota: 1, Status: InvoiceStatusRejected}
 			require.NoError(t, DB.Create(&legacy).Error)
@@ -335,7 +326,7 @@ func TestInvoiceRefundRollsBackWhenStatusWriteFails(t *testing.T) {
 	user := User{Username: "invoice-refund-rollback", InvoiceEnabled: true, Quota: 1000000, AuthVersion: 1}
 	require.NoError(t, DB.Create(&user).Error)
 	require.NoError(t, populateUserCache(user))
-	order := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "refund-rollback", Status: common.TopUpStatusSuccess}
+	order := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "refund-rollback", Status: common.TopUpStatusSuccess, CreateTime: common.GetTimestamp()}
 	require.NoError(t, DB.Create(&order).Error)
 	application, err := CreateInvoiceApplication(user.Id, order.Id, "Buyer", "Tax", "buyer@example.com")
 	require.NoError(t, err)
@@ -378,7 +369,7 @@ func TestConcurrentInvoiceCloseRefundsFeeOnlyOnce(t *testing.T) {
 	user := User{Username: "invoice-concurrent-close", InvoiceEnabled: true, Quota: 1000000, AuthVersion: 1}
 	require.NoError(t, DB.Create(&user).Error)
 	require.NoError(t, populateUserCache(user))
-	order := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "concurrent-close-order", Status: common.TopUpStatusSuccess}
+	order := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "concurrent-close-order", Status: common.TopUpStatusSuccess, CreateTime: common.GetTimestamp()}
 	require.NoError(t, DB.Create(&order).Error)
 	application, err := CreateInvoiceApplication(user.Id, order.Id, "Buyer", "Tax", "buyer@example.com")
 	require.NoError(t, err)
@@ -404,4 +395,84 @@ func TestConcurrentInvoiceCloseRefundsFeeOnlyOnce(t *testing.T) {
 	cached, err := GetUserCache(user.Id)
 	require.NoError(t, err)
 	assert.Equal(t, 1000000, cached.Quota)
+}
+
+func TestInvoiceAdminDeleteHidesRecordWithoutChangingUserApplication(t *testing.T) {
+	setupInvoiceDB(t)
+	user := User{Username: "invoice-delete-user", InvoiceEnabled: true, Quota: 1000000}
+	require.NoError(t, DB.Create(&user).Error)
+	initialQuota := user.Quota
+	statuses := []string{InvoiceStatusCompleted, InvoiceStatusClosed}
+	for index, status := range statuses {
+		order := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: fmt.Sprintf("delete-order-%d", index), Status: common.TopUpStatusSuccess, CreateTime: common.GetTimestamp()}
+		require.NoError(t, DB.Create(&order).Error)
+		application := InvoiceApplication{UserId: user.Id, TopUpId: order.Id, TradeNo: order.TradeNo, Status: status, FeeQuota: 240000, Version: 3, CreateTime: common.GetTimestamp()}
+		require.NoError(t, DB.Create(&application).Error)
+		require.NoError(t, DeleteInvoiceApplication(application.Id, application.Version))
+		var persisted InvoiceApplication
+		require.NoError(t, DB.First(&persisted, application.Id).Error)
+		assert.True(t, persisted.AdminHidden)
+		assert.Equal(t, status, persisted.Status)
+		assert.Equal(t, application.Version+1, persisted.Version)
+		byOrder, err := GetInvoiceByTopUpIDs([]int{order.Id})
+		require.NoError(t, err)
+		assert.Equal(t, status, byOrder[order.Id].Status)
+		var persistedUser User
+		require.NoError(t, DB.First(&persistedUser, user.Id).Error)
+		assert.Equal(t, initialQuota, persistedUser.Quota)
+		_, total, err := ListInvoiceApplications(&common.PageInfo{Page: 1, PageSize: 10}, "", "")
+		require.NoError(t, err)
+		assert.Zero(t, total)
+	}
+}
+
+func TestInvoiceAdminDeleteRejectsPendingAndStaleVersion(t *testing.T) {
+	setupInvoiceDB(t)
+	application := InvoiceApplication{Status: InvoiceStatusPending, Version: 2, TradeNo: "pending-delete"}
+	require.NoError(t, DB.Create(&application).Error)
+	err := DeleteInvoiceApplication(application.Id, application.Version)
+	require.ErrorContains(t, err, "已完成或已关闭")
+	err = DeleteInvoiceApplication(application.Id, application.Version-1)
+	require.ErrorContains(t, err, "已更新")
+	var persisted InvoiceApplication
+	require.NoError(t, DB.First(&persisted, application.Id).Error)
+	assert.False(t, persisted.AdminHidden)
+}
+
+func TestHideExpiredInvoiceApplicationsKeepsPendingAndUserRecord(t *testing.T) {
+	setupInvoiceDB(t)
+	user := User{Username: "invoice-cleanup-user", InvoiceEnabled: true}
+	require.NoError(t, DB.Create(&user).Error)
+	now := common.GetTimestamp()
+	oldOrder := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "old-completed", Status: common.TopUpStatusSuccess, CreateTime: now - 31*86400}
+	pendingOrder := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "old-pending", Status: common.TopUpStatusSuccess, CreateTime: now - 31*86400}
+	recentOrder := TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "recent-completed", Status: common.TopUpStatusSuccess, CreateTime: now}
+	require.NoError(t, DB.Create(&oldOrder).Error)
+	require.NoError(t, DB.Create(&pendingOrder).Error)
+	require.NoError(t, DB.Create(&recentOrder).Error)
+
+	oldApplication := InvoiceApplication{UserId: user.Id, TopUpId: oldOrder.Id, TradeNo: oldOrder.TradeNo, Status: InvoiceStatusCompleted}
+	pendingApplication := InvoiceApplication{UserId: user.Id, TopUpId: pendingOrder.Id, TradeNo: pendingOrder.TradeNo, Status: InvoiceStatusPending}
+	recentApplication := InvoiceApplication{UserId: user.Id, TopUpId: recentOrder.Id, TradeNo: recentOrder.TradeNo, Status: InvoiceStatusClosed}
+	require.NoError(t, DB.Create(&oldApplication).Error)
+	require.NoError(t, DB.Create(&pendingApplication).Error)
+	require.NoError(t, DB.Create(&recentApplication).Error)
+	hidden, err := HideExpiredInvoiceApplications(context.Background())
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, hidden)
+	var oldPersisted InvoiceApplication
+	require.NoError(t, DB.First(&oldPersisted, oldApplication.Id).Error)
+	assert.True(t, oldPersisted.AdminHidden)
+	var pendingPersisted InvoiceApplication
+	require.NoError(t, DB.First(&pendingPersisted, pendingApplication.Id).Error)
+	assert.False(t, pendingPersisted.AdminHidden)
+	var recentPersisted InvoiceApplication
+	require.NoError(t, DB.First(&recentPersisted, recentApplication.Id).Error)
+	assert.False(t, recentPersisted.AdminHidden)
+	byOrder, err := GetInvoiceByTopUpIDs([]int{oldOrder.Id})
+	require.NoError(t, err)
+	assert.Equal(t, InvoiceStatusCompleted, byOrder[oldOrder.Id].Status)
+	var persistedUser User
+	require.NoError(t, DB.First(&persistedUser, user.Id).Error)
+	assert.Zero(t, persistedUser.Quota)
 }

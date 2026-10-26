@@ -260,6 +260,10 @@ func InitLogDB() (err error) {
 	return err
 }
 
+func migrateInvoiceApplicationAdminHidden() error {
+	return DB.Model(&InvoiceApplication{}).Where("admin_hidden IS NULL").Update("admin_hidden", false).Error
+}
+
 func migrateDB() error {
 	// Migrate price_amount column from float/double to decimal for existing tables
 	migrateSubscriptionPlanPriceAmount()
@@ -305,6 +309,9 @@ func migrateDB() error {
 		&AuthzRole{},
 	)
 	if err != nil {
+		return err
+	}
+	if err := migrateInvoiceApplicationAdminHidden(); err != nil {
 		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
@@ -388,6 +395,9 @@ func migrateDBFast() error {
 		if err != nil {
 			return err
 		}
+	}
+	if err := migrateInvoiceApplicationAdminHidden(); err != nil {
+		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err

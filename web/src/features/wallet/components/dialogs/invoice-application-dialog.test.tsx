@@ -166,14 +166,12 @@ test('closed invoice orders show the closed message and a fresh application butt
   const { BillingHistoryDialog } = await import('./billing-history-dialog')
   const { useAuthStore } = await import('@/stores/auth-store')
   const originalAuth = useAuthStore.getState().auth
-  useAuthStore
-    .getState()
-    .auth.setUser({
-      id: 1,
-      username: 'invoice-user',
-      role: 1,
-      email: 'account@example.com',
-    })
+  useAuthStore.getState().auth.setUser({
+    id: 1,
+    username: 'invoice-user',
+    role: 1,
+    email: 'account@example.com',
+  })
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   })
@@ -187,7 +185,6 @@ test('closed invoice orders show the closed message and a fresh application butt
         can_apply: true,
         email: 'account@example.com',
         fee_percent: 6,
-        max_age_days: 7,
         min_amount: 0,
         permission_mode: 'all',
       }

@@ -283,7 +283,6 @@ export interface InvoiceConfig {
   enabled: boolean
   fee_percent: number
   min_amount: number
-  max_age_days: number
   permission_mode: 'all' | 'specified'
   can_apply: boolean
   email: string

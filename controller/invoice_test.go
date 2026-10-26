@@ -36,7 +36,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestInvoiceConfigurationPersistsAndValidatesApplicationWindow(t *testing.T) {
+func TestInvoiceConfigurationPersistsAndValidates(t *testing.T) {
 	previousDB := model.DB
 	previousConfig := model.GetInvoiceConfig()
 	common.OptionMapRWMutex.Lock()
@@ -55,51 +55,33 @@ func TestInvoiceConfigurationPersistsAndValidatesApplicationWindow(t *testing.T)
 		setting.InvoiceFeePercent = previousConfig.FeePercent
 		setting.InvoiceMinAmount = previousConfig.MinAmount
 		setting.InvoicePermissionMode = previousConfig.PermissionMode
-		setting.InvoiceMaxAgeDays = previousConfig.MaxAgeDays
 		common.OptionMapRWMutex.Unlock()
 		sqlDB, err := db.DB()
 		require.NoError(t, err)
 		require.NoError(t, sqlDB.Close())
 	})
-	for _, tc := range []struct {
-		name     string
-		body     string
-		success  bool
-		wantDays int
-	}{
-		{"seven days", `{"enabled":true,"fee_percent":6,"min_amount":1,"permission_mode":"specified","max_age_days":7}`, true, 7},
-		{"negative days", `{"permission_mode":"specified","max_age_days":-1}`, false, 7},
-		{"overflowing days", `{"permission_mode":"specified","max_age_days":36501}`, false, 7},
-		{"fractional days", `{"permission_mode":"specified","max_age_days":1.5}`, false, 7},
-		{"omitted window preserves saved value", `{"enabled":true,"fee_percent":6,"permission_mode":"specified"}`, true, 7},
-		{"unlimited", `{"enabled":true,"fee_percent":6,"permission_mode":"specified","max_age_days":0}`, true, 0},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(recorder)
-			c.Request = httptest.NewRequest(http.MethodPut, "/api/invoice/admin/config", strings.NewReader(tc.body))
-			UpdateAdminInvoiceConfig(c)
-			var response struct {
-				Success bool `json:"success"`
-				Data    struct {
-					MaxAgeDays int `json:"max_age_days"`
-				} `json:"data"`
-			}
-			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
-			assert.Equal(t, tc.success, response.Success)
-			assert.Equal(t, tc.wantDays, model.GetInvoiceConfig().MaxAgeDays)
-			var saved model.Option
-			require.NoError(t, db.Where(&model.Option{Key: "InvoiceMaxAgeDays"}).First(&saved).Error)
-			if tc.wantDays == 0 {
-				assert.Equal(t, "0", saved.Value)
-			} else {
-				assert.Equal(t, "7", saved.Value)
-			}
-			if tc.success {
-				assert.Equal(t, tc.wantDays, response.Data.MaxAgeDays)
-			}
-		})
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/invoice/admin/config", strings.NewReader(`{"enabled":true,"fee_percent":6,"min_amount":1,"permission_mode":"specified"}`))
+	UpdateAdminInvoiceConfig(c)
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Enabled        bool    `json:"enabled"`
+			FeePercent     float64 `json:"fee_percent"`
+			MinAmount      float64 `json:"min_amount"`
+			PermissionMode string  `json:"permission_mode"`
+		} `json:"data"`
 	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.True(t, response.Success)
+	assert.True(t, response.Data.Enabled)
+	assert.Equal(t, 6.0, response.Data.FeePercent)
+	assert.Equal(t, 1.0, response.Data.MinAmount)
+	assert.Equal(t, "specified", response.Data.PermissionMode)
+	var saved model.Option
+	require.NoError(t, db.Where(&model.Option{Key: "InvoiceFeePercent"}).First(&saved).Error)
+	assert.Equal(t, "6", saved.Value)
 }
 
 func TestClosedInvoiceRefundsFeeAndKeepsOrderAvailableForReapplication(t *testing.T) {
@@ -111,14 +93,12 @@ func TestClosedInvoiceRefundsFeeAndKeepsOrderAvailableForReapplication(t *testin
 	setting.InvoicePermissionMode = "all"
 	setting.InvoiceFeePercent = 6
 	setting.InvoiceMinAmount = 0
-	setting.InvoiceMaxAgeDays = 7
 	common.QuotaPerUnit = 500000
 	t.Cleanup(func() {
 		setting.InvoiceEnabled = previousConfig.Enabled
 		setting.InvoicePermissionMode = previousConfig.PermissionMode
 		setting.InvoiceFeePercent = previousConfig.FeePercent
 		setting.InvoiceMinAmount = previousConfig.MinAmount
-		setting.InvoiceMaxAgeDays = previousConfig.MaxAgeDays
 		common.QuotaPerUnit = previousQuotaPerUnit
 	})
 	user := model.User{Username: "closed-invoice-owner", Quota: 1000000}
