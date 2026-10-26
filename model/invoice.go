@@ -167,6 +167,13 @@ func refundInvoiceFee(tx *gorm.DB, user *User, application *InvoiceApplication) 
 	}
 	quota64 := int64(quota)
 	if int64(user.Quota) > maxQuota-quota64 {
+		// A legacy account may already contain a balance above the int32
+		// quota range. Since the recorded fee was deducted before this
+		// refund, allow the balance to return to the platform int range.
+		// The second check still prevents an actual integer overflow.
+		maxQuota = int64(^uint(0) >> 1)
+	}
+	if int64(user.Quota) > maxQuota-quota64 {
 		return 0, errors.New("开票手续费退款超出余额范围")
 	}
 	result := tx.Model(&User{}).Where("id = ? AND quota <= ?", user.Id, maxQuota-quota64).

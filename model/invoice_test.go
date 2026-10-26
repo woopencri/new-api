@@ -378,6 +378,26 @@ func TestInvoiceRefundAllowsSQLiteQuotaAboveLegacyInt32Limit(t *testing.T) {
 	assert.Equal(t, common.MaxQuota+101, user.Quota)
 }
 
+func TestInvoiceRefundAllowsLegacyLargeQuotaOnNonSQLiteDatabase(t *testing.T) {
+	setupInvoiceDB(t)
+	previousDatabaseType := common.MainDatabaseType()
+	common.SetMainDatabaseType(common.DatabaseTypeMySQL)
+	t.Cleanup(func() {
+		common.SetMainDatabaseType(previousDatabaseType)
+	})
+	user := User{Username: "invoice-refund-legacy-large-quota", Quota: common.MaxQuota + 100, AuthVersion: 1}
+	require.NoError(t, DB.Create(&user).Error)
+	order := TopUp{UserId: user.Id, TradeNo: "refund-legacy-large-quota", Status: common.TopUpStatusSuccess}
+	require.NoError(t, DB.Create(&order).Error)
+	application := InvoiceApplication{UserId: user.Id, TopUpId: order.Id, FeeQuota: 1, Status: InvoiceStatusPending}
+	require.NoError(t, DB.Create(&application).Error)
+	updated, err := UpdateInvoiceStatus(application.Id, InvoiceStatusClosed, "", application.Version)
+	require.NoError(t, err)
+	assert.True(t, updated.FeeRefunded)
+	require.NoError(t, DB.First(&user, user.Id).Error)
+	assert.Equal(t, common.MaxQuota+101, user.Quota)
+}
+
 func TestConcurrentInvoiceCloseRefundsFeeOnlyOnce(t *testing.T) {
 	setupInvoiceDB(t)
 	useUserCacheMiniRedis(t)
