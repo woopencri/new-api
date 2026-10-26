@@ -150,3 +150,40 @@ func TestClosedInvoiceRefundsFeeAndKeepsOrderAvailableForReapplication(t *testin
 	assert.True(t, response.Data.Items[0].InvoiceAvailable)
 	assert.Equal(t, 240000, response.Data.Items[0].InvoiceFeeQuota)
 }
+
+func TestUserTopUpHidesInvoiceDetailsWhenGloballyDisabled(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.TopUp{}, &model.InvoiceApplication{}))
+	previousConfig := model.GetInvoiceConfig()
+	setting.InvoiceEnabled = false
+	setting.InvoicePermissionMode = "all"
+	t.Cleanup(func() {
+		setting.InvoiceEnabled = previousConfig.Enabled
+		setting.InvoiceFeePercent = previousConfig.FeePercent
+		setting.InvoiceMinAmount = previousConfig.MinAmount
+		setting.InvoicePermissionMode = previousConfig.PermissionMode
+	})
+	user := model.User{Username: "invoice-disabled-user", Quota: 1000000, InvoiceEnabled: true}
+	require.NoError(t, db.Create(&user).Error)
+	order := model.TopUp{UserId: user.Id, Amount: 8, Money: 8, TradeNo: "invoice-disabled-order", Status: common.TopUpStatusSuccess, CreateTime: common.GetTimestamp()}
+	require.NoError(t, db.Create(&order).Error)
+	require.NoError(t, db.Create(&model.InvoiceApplication{
+		UserId: user.Id, TopUpId: order.Id, TradeNo: order.TradeNo, Status: model.InvoiceStatusCompleted,
+	}).Error)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("id", user.Id)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/user/topup/self", nil)
+	GetUserTopUps(c)
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Items []model.TopUp `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Len(t, response.Data.Items, 1)
+	assert.Empty(t, response.Data.Items[0].InvoiceStatus)
+	assert.False(t, response.Data.Items[0].InvoiceAvailable)
+}

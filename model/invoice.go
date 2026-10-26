@@ -264,6 +264,9 @@ func CreateInvoiceApplication(userId int, topUpId int, buyerName string, taxpaye
 	if quotaDelta != 0 {
 		if err := cacheIncrUserQuota(userId, int64(quotaDelta)); err != nil {
 			common.SysLog(fmt.Sprintf("failed to update invoice quota cache for user %d: %s", userId, err.Error()))
+			if invalidateErr := invalidateUserCache(userId); invalidateErr != nil {
+				common.SysLog(fmt.Sprintf("failed to invalidate invoice quota cache for user %d: %s", userId, invalidateErr.Error()))
+			}
 		}
 	}
 	RecordLog(userId, LogTypeSystem, fmt.Sprintf("申请开票，订单号：%s，申请版本：%d，手续费：%.6f，余额额度变动：%d", application.TradeNo, application.Version, application.FeeAmount, quotaDelta))
@@ -387,6 +390,9 @@ func UpdateInvoiceStatus(id int, status string, remark string, version int) (*In
 	if refunded > 0 {
 		if err := cacheIncrUserQuota(application.UserId, int64(refunded)); err != nil {
 			common.SysLog(fmt.Sprintf("failed to refund invoice quota cache for user %d: %s", application.UserId, err.Error()))
+			if invalidateErr := invalidateUserCache(application.UserId); invalidateErr != nil {
+				common.SysLog(fmt.Sprintf("failed to invalidate invoice quota cache for user %d: %s", application.UserId, invalidateErr.Error()))
+			}
 		}
 	}
 	RecordLog(application.UserId, LogTypeSystem, fmt.Sprintf("更新开票申请，订单号：%s，版本：%d，状态：%s，退还手续费额度：%d", application.TradeNo, application.Version, application.Status, refunded))

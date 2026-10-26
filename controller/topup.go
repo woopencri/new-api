@@ -458,32 +458,34 @@ func GetUserTopUps(c *gin.Context) {
 		return
 	}
 
-	applications, err := model.GetInvoiceByTopUpIDs(func() []int {
-		ids := make([]int, 0, len(topups))
+	if model.GetInvoiceConfig().Enabled {
+		applications, err := model.GetInvoiceByTopUpIDs(func() []int {
+			ids := make([]int, 0, len(topups))
+			for _, topUp := range topups {
+				ids = append(ids, topUp.Id)
+			}
+			return ids
+		}())
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		user, err := model.GetUserById(userId, false)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
 		for _, topUp := range topups {
-			ids = append(ids, topUp.Id)
-		}
-		return ids
-	}())
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	user, err := model.GetUserById(userId, false)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	for _, topUp := range topups {
-		if application := applications[topUp.Id]; application != nil {
-			topUp.InvoiceStatus = application.Status
-		}
-		if (topUp.InvoiceStatus == "" || model.IsInvoiceApplicationClosed(topUp.InvoiceStatus)) && model.UserCanApplyInvoice(user, topUp) {
-			feeAmount, feeQuota, feeErr := model.CalculateInvoiceFee(topUp)
-			if feeErr == nil {
-				topUp.InvoiceAvailable = true
-				topUp.InvoiceFeeAmount = feeAmount
-				topUp.InvoiceFeeQuota = feeQuota
+			if application := applications[topUp.Id]; application != nil {
+				topUp.InvoiceStatus = application.Status
+			}
+			if (topUp.InvoiceStatus == "" || model.IsInvoiceApplicationClosed(topUp.InvoiceStatus)) && model.UserCanApplyInvoice(user, topUp) {
+				feeAmount, feeQuota, feeErr := model.CalculateInvoiceFee(topUp)
+				if feeErr == nil {
+					topUp.InvoiceAvailable = true
+					topUp.InvoiceFeeAmount = feeAmount
+					topUp.InvoiceFeeQuota = feeQuota
+				}
 			}
 		}
 	}
